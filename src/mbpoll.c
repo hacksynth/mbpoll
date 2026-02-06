@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2023 Pascal JEAN, All rights reserved.
+/* Copyright (c) 2015-2025 Pascal JEAN, All rights reserved.
  *
  * mbpoll is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include <signal.h>
 #include <float.h>
 #include <inttypes.h>
-#include <assert.h>
 #include <modbus.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -103,8 +102,8 @@ typedef enum {
 /* macros =================================================================== */
 #define SIZEOF_ILIST(list) (sizeof(list)/sizeof(int))
 /*
- * Le pointeur sur les données est de type void *, les macros ci-dessous
- * permettent de caster l'accès aux données en fonction de leur format
+ * The data pointer is of type void*, the macros below
+ * cast data access based on their format
  */
 #define DUINT8(p,i) ((uint8_t *)(p))[i]
 #define DUINT16(p,i) ((uint16_t *)(p))[i]
@@ -219,7 +218,7 @@ typedef struct xChipIoContext xChipIoContext;
 
 typedef struct xMbPollContext {
 
-  // Paramètres
+  // Parameters
   eModes eMode;
   eFunctions eFunction;
   eFormats eFormat;
@@ -248,24 +247,27 @@ typedef struct xMbPollContext {
   bool bIsChipIo;
   bool bIsBigEndian;
   bool bIsQuiet;
+  bool bPrintHex;
+  bool bEnableMaxSlaveQuirk;
+  bool bEnableReplyToBroadcastQuirk;
 #ifdef MBPOLL_GPIO_RTS
   int iRtsPin;
 #endif
 
-  // Variables de travail
+  // Working variables
   modbus_t * xBus;
   void * pvData;
   int iTxCount;
   int iRxCount;
   int iErrorCount;
 
-  xChipIoContext * xChip; // TODO: séparer la partie chipio
+  xChipIoContext * xChip; // TODO: separate the chipio part
 } xMbPollContext;
 
 /* private variables ======================================================== */
 
 static xMbPollContext ctx = {
-  // Paramètres
+  // Parameters
   .eMode = DEFAULT_MODE,
   .eFunction = DEFAULT_FUNCTION,
   .eFormat = eFormatDec,
@@ -296,11 +298,14 @@ static xMbPollContext ctx = {
   .bIsChipIo = false,
   .bIsBigEndian = false,
   .bIsQuiet = false,
+  .bPrintHex = false,
+  .bEnableMaxSlaveQuirk = false,
+  .bEnableReplyToBroadcastQuirk = false,
 #ifdef MBPOLL_GPIO_RTS
   .iRtsPin = -1,
 #endif
 
-  // Variables de travail
+  // Working variables
   .xBus = NULL,
   .pvData = NULL
 };
@@ -311,27 +316,27 @@ static xMbPollContext ctx = {
 #include <sysio/rpi.h>
 
 /* private variables ======================================================== */
-// Paramètres
+// Parameters
 static int iChipIoSlaveAddr = DEFAULT_CHIPIO_SLAVEADDR;
 static int iChipIoIrqPin    = DEFAULT_CHIPIO_IRQPIN;
 //static bool  bIsChipIo = false;
 
-// Variables de travail
+// Working variables
 static xChipIo * xChip;
 static xChipIoSerial * xChipSerial;
 
 /* constants ================================================================ */
 static const char sChipIoSlaveAddrStr[] = "chipio slave address";
 static const char sChipIoIrqPinStr[] = "chipio irq pin";
-// option -i et -n supplémentaires pour chipio
-static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WRhVvwBqi:n:";
+// additional options -i and -n for chipio
+static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WRhVvwBqi:n:xQX";
 
 #else /* USE_CHIPIO == 0 */
 /* constants ================================================================ */
 #ifdef MBPOLL_GPIO_RTS
-static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WR::F::hVvwBq";
+static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WR::F::hVvwBqxQX";
 #else
-static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WRFhVvwBq";
+static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WRFhVvwBqxQX";
 #endif
 // -----------------------------------------------------------------------------
 #endif /* USE_CHIPIO == 0 */
@@ -465,7 +470,7 @@ main (int argc, char **argv) {
 
       case 'a':
         ctx.piSlaveAddr = iGetIntList (sSlaveAddrStr, optarg, &ctx.iSlaveCount);
-        // Vérification dépend du mode
+        // Verification depends on mode
         break;
 
       case 'r':
@@ -545,6 +550,18 @@ main (int argc, char **argv) {
         ctx.bIsQuiet = true;
         break;
 
+      case 'x':
+        ctx.bPrintHex = true;
+        break;
+
+      case 'Q':
+        ctx.bEnableMaxSlaveQuirk = true;
+        break;
+
+      case 'X':
+        ctx.bEnableReplyToBroadcastQuirk = true;
+        break;
+
         // TCP -----------------------------------------------------------------
       case 'p':
         ctx.sTcpPort = optarg;
@@ -608,7 +625,9 @@ main (int argc, char **argv) {
 
   if (ctx.iStartCount == -1) {
     ctx.piStartRef = malloc (sizeof (int));
-    assert (ctx.piStartRef);
+    if (ctx.piStartRef == NULL) {
+      vIoErrorExit ("Memory allocation failed for start reference");
+    }
     ctx.piStartRef[0] = DEFAULT_STARTREF;
     ctx.iStartCount = 1;
   }
@@ -632,13 +651,13 @@ main (int argc, char **argv) {
     ctx.iCount = 1;
   }
 
-  // Coils et Discrete inputs toujours en binaire
+  // Coils and Discrete inputs are always binary
   if ( (ctx.eFunction == eFuncCoil) || (ctx.eFunction == eFuncDiscreteInput)) {
 
     ctx.eFormat = eFormatBin;
   }
 
-  // Lecture du port série ou de l'hôte
+  // Read serial port or host
   if (optind == argc) {
 
     vSyntaxErrorExit ("device or host parameter missing");
@@ -648,7 +667,7 @@ main (int argc, char **argv) {
   if ( (strcasestr (ctx.sDevice, "com") || strcasestr (ctx.sDevice, "tty") ||
         strcasestr (ctx.sDevice, "ser")) && ctx.bIsDefaultMode) {
 
-    // Mode par défaut si port série
+    // Default mode for serial port
     ctx.eMode = eModeRtu;
     PDEBUG ("Set mode to RTU for serial port\n");
   }
@@ -663,11 +682,11 @@ main (int argc, char **argv) {
       xDin xChipIrqPin = { .num = iChipIoIrqPin, .act = true,
                            .pull = ePullOff
                          };
-      // Création du port série virtuel
+      // Create virtual serial port
       xChipSerial = xChipIoSerialNew (xChip, &xChipIrqPin);
       if (xChipSerial) {
 
-        // le port série virtuel sera utilisé par libmobus comme un port normal
+        // The virtual serial port will be used by libmodbus as a normal port
         ctx.sDevice = sChipIoSerialPortName (xChipSerial);
         if (iChipIoSerialSetAttr (xChipSerial, &ctx.xRtu) != 0) {
 
@@ -699,12 +718,12 @@ main (int argc, char **argv) {
 
   if (! ctx.bIsReportSlaveID) {
 
-    // Calcul du nombre de données à écrire
+    // Calculate number of data to write
     int iNbToWrite = MAX (0, argc - optind - 1);
     if (iNbToWrite) {
       if (!ctx.bIsWrite) {
 
-        // option -c fournie pour une lecture avec des données à écrire !
+        // -c option provided for reading with data to write!
         vSyntaxErrorExit ("-c parameter must not be specified for writing");
       }
       ctx.bIsPolling = false;
@@ -715,10 +734,10 @@ main (int argc, char **argv) {
       ctx.bIsWrite = false;
     }
 
-    // Allocation de la mémoire nécessaire
+    // Allocate necessary memory
     vAllocate (&ctx);
 
-    // Récupération sur la ligne de commande des données à écrire
+    // Retrieve data to write from command line
     if (iNbToWrite) {
       int iValue, i = 0, arg;
       double dValue;
@@ -770,7 +789,7 @@ main (int argc, char **argv) {
             }
             break;
 
-          default: // Impossible, la valeur a été vérifiée, évite un warning de gcc
+          default: // Impossible, value has been verified, prevents gcc warning
             break;
         }
       }
@@ -788,12 +807,14 @@ main (int argc, char **argv) {
   if (ctx.iSlaveCount == -1) {
 
     ctx.piSlaveAddr = malloc (sizeof (int));
-    assert (ctx.piSlaveAddr);
+    if (ctx.piSlaveAddr == NULL) {
+      vIoErrorExit ("Memory allocation failed for slave address");
+    }
     ctx.piSlaveAddr[0] = DEFAULT_SLAVEADDR;
     ctx.iSlaveCount = 1;
   }
 
-  // Fin de vérification des valeurs de paramètres et création des contextes
+  // End of parameter value verification and context creation
   switch (ctx.eMode) {
     case eModeRtu:
       for (i = 0; i < ctx.iSlaveCount; i++) {
@@ -821,6 +842,20 @@ main (int argc, char **argv) {
     vIoErrorExit ("Unable to create the libmodbus context");
   }
   modbus_set_debug (ctx.xBus, ctx.bIsVerbose);
+
+  // Enable libmodbus quirks if requested
+  if (ctx.bEnableMaxSlaveQuirk || ctx.bEnableReplyToBroadcastQuirk) {
+    int iQuirks = 0;
+    if (ctx.bEnableMaxSlaveQuirk) {
+      iQuirks |= MODBUS_QUIRK_MAX_SLAVE;
+    }
+    if (ctx.bEnableReplyToBroadcastQuirk) {
+      iQuirks |= MODBUS_QUIRK_REPLY_TO_BROADCAST;
+    }
+    if (modbus_enable_quirks (ctx.xBus, iQuirks) != 0) {
+      vIoErrorExit ("Unable to enable quirk(s): %s", modbus_strerror (errno));
+    }
+  }
 
   if (false == ctx.bIsQuiet) {
     vHello();
@@ -854,12 +889,12 @@ main (int argc, char **argv) {
 
 
   /*
-   * évites que l'esclave prenne l'impulsion de 40µs créée par le driver à
-   * l'ouverture du port comme un bit de start.
+   * Prevents the slave from interpreting the 40us pulse created by the driver
+   * when opening the port as a start bit.
    */
   mb_delay (20);
 
-  // Réglage du timeout de réponse
+  // Set response timeout
   uint32_t  sec, usec;
 #ifdef DEBUG
 
@@ -889,24 +924,28 @@ main (int argc, char **argv) {
     iNbReg = ( (ctx.eFormat == eFormatInt) || (ctx.eFormat == eFormatFloat)) ?
              ctx.iCount * 2 : ctx.iCount;
 
-    // Début de la boucle de scrutation
+    // Start of polling loop
     do {
 
       if (ctx.bIsWrite) {
 
-        // libmodbus utilise les adresses PDU !
+        // libmodbus uses PDU addresses!
         iStartReg = ctx.piStartRef[0] - ctx.iPduOffset;
 
-        modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[0]);
+        iRet = modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[0]);
+        if (iRet != 0) {
+          vIoErrorExit ("Setting slave address failed: %s",
+                        modbus_strerror (errno));
+        }
         ctx.iTxCount++;
 
-        // Ecriture ------------------------------------------------------------
+        // Write ------------------------------------------------------------
         switch (ctx.eFunction) {
 
           case eFuncCoil:
             if (iNbReg == 1) {
 
-              // Ecriture d'un seul bit
+              // Write single bit
               iRet = modbus_write_bit (ctx.xBus, iStartReg,
                                        DUINT8 (ctx.pvData, 0));
             }
@@ -920,7 +959,7 @@ main (int argc, char **argv) {
           case eFuncHoldingReg:
             if (iNbReg == 1 && (!ctx.bWriteSingleAsMany)) {
 
-              // Ecriture d'un seul registre
+              // Write single register
               iRet = modbus_write_register (ctx.xBus, iStartReg,
                                             DUINT16 (ctx.pvData, 0));
             }
@@ -931,7 +970,7 @@ main (int argc, char **argv) {
             }
             break;
 
-          default: // Impossible, la valeur a été vérifiée, évite un warning de gcc
+          default: // Impossible, value has been verified, prevents gcc warning
             break;
         }
         if (iRet == iNbReg) {
@@ -944,15 +983,19 @@ main (int argc, char **argv) {
           fprintf (stderr, "Write %s failed: %s\n",
                    sFunctionToStr (ctx.eFunction), modbus_strerror (errno));
         }
-        // Fin écriture --------------------------------------------------------
+        // End write --------------------------------------------------------
       }
       else {
         int i;
 
-        // Lecture -------------------------------------------------------------
+        // Read -------------------------------------------------------------
         for (i = 0; i < ctx.iSlaveCount; i++) {
 
-          modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[i]);
+          iRet = modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[i]);
+          if (iRet != 0) {
+            vIoErrorExit ("Setting slave address failed: %s",
+                          modbus_strerror (errno));
+          }
           ctx.iTxCount++;
 
           printf ("-- Polling slave %d...", ctx.piSlaveAddr[i]);
@@ -991,7 +1034,7 @@ main (int argc, char **argv) {
                                               ctx.pvData);
                 break;
 
-              default: // Impossible, la valeur a été vérifiée, évite un warning de gcc
+              default: // Impossible, value has been verified, prevents gcc warning
                 break;
 
             }
@@ -1012,7 +1055,7 @@ main (int argc, char **argv) {
             mb_delay (ctx.iPollRate);
           }
         }
-        // Fin lecture ---------------------------------------------------------
+        // End read ---------------------------------------------------------
       }
     }
     while (ctx.bIsPolling);
@@ -1028,10 +1071,11 @@ main (int argc, char **argv) {
 // -----------------------------------------------------------------------------
 void
 vPrintReadValues (int iAddr, int iCount, xMbPollContext * ctx) {
+  const char *sAddrFormat = ctx->bPrintHex ? "[0x%04X]: \t" : "[%d]: \t";
   int i;
   for (i = 0; i < iCount; i++) {
 
-    printf ("[%d]: \t", iAddr);
+    printf (sAddrFormat, iAddr);
 
     switch (ctx->eFormat) {
 
@@ -1091,16 +1135,21 @@ vPrintReadValues (int iAddr, int iCount, xMbPollContext * ctx) {
 void
 vReportSlaveID (const xMbPollContext * ctx) {
   uint8_t ucReport[256];
+  int iRet;
 
-  modbus_set_slave (ctx->xBus, ctx->piSlaveAddr[0]);
-  // Affichage de la configuration
+  iRet = modbus_set_slave (ctx->xBus, ctx->piSlaveAddr[0]);
+  if (iRet != 0) {
+    vIoErrorExit ("Setting slave address failed: %s",
+                  modbus_strerror (errno));
+  }
+  // Display configuration
   printf ("Protocol configuration: ModBus %s\n", sModeList[ctx->eMode]);
   printf ("Slave configuration...: address = %d, report slave id\n",
           ctx->piSlaveAddr[0]);
 
   vPrintCommunicationSetup (ctx);
 
-  int iRet = modbus_report_slave_id (ctx->xBus, 256, ucReport);
+  iRet = modbus_report_slave_id (ctx->xBus, 256, ucReport);
 
   if (iRet < 0) {
 
@@ -1239,14 +1288,14 @@ vPrintConfig (const xMbPollContext * ctx) {
       printf (", output (holding) register table\n");
       break;
 
-    default: // Impossible, la valeur a été vérifiée, évite un warning de gcc
+    default: // Impossible, value has been verified, prevents gcc warning
       break;
   }
   putchar ('\n');
 }
 
 // -----------------------------------------------------------------------------
-// Allocation de la mémoire pour les données à écrire ou à lire
+// Memory allocation for data to write or read
 void
 vAllocate (xMbPollContext * ctx) {
 
@@ -1255,26 +1304,28 @@ vAllocate (xMbPollContext * ctx) {
 
     case eFuncCoil:
     case eFuncDiscreteInput:
-      // 1 bit est stocké dans un octet
+      // 1 bit is stored in one byte
       break;
 
     case eFuncInputReg:
     case eFuncHoldingReg:
       if ( (ctx->eFormat == eFormatInt) || (ctx->eFormat == eFormatFloat)) {
-        // Registres 32-bits
+        // 32-bit registers
         ulDataSize *= 4;
       }
       else {
-        // Registres 16-bits
+        // 16-bit registers
         ulDataSize *= 2;
       }
       break;
 
-    default: // Impossible, la valeur a été vérifiée, évite un warning de gcc
+    default: // Impossible, value has been verified, prevents gcc warning
       break;
   }
   ctx->pvData = calloc (1, ulDataSize);
-  assert (ctx->pvData);
+  if (ctx->pvData == NULL) {
+    vIoErrorExit ("Memory allocation failed for data buffer");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1295,6 +1346,7 @@ vSigIntHandler (int sig) {
 
   free (ctx.pvData);
   free (ctx.piSlaveAddr);
+  free (ctx.piStartRef);
   modbus_close (ctx.xBus);
   modbus_free (ctx.xBus);
 #ifdef USE_CHIPIO
@@ -1331,6 +1383,7 @@ vFailureExit (bool bHelp, const char *format, ...) {
   fflush (stderr);
   free (ctx.pvData);
   free (ctx.piSlaveAddr);
+  free (ctx.piStartRef);
   exit (EXIT_FAILURE);
 }
 
@@ -1345,7 +1398,7 @@ vVersion (void)  {
 void
 vWarranty (void) {
   printf (
-    "Copyright (c) 2015-2023 %s, All rights reserved.\n\n"
+    "Copyright (c) 2015-2025 %s, All rights reserved.\n\n"
 
     " mbpoll is free software: you can redistribute it and/or modify\n"
     " it under the terms of the GNU General Public License as published by\n"
@@ -1368,7 +1421,7 @@ void
 vHello (void) {
   printf ("mbpoll %s - ModBus(R) Master Simulator\n",
           VERSION_SHORT);
-  printf ("Copyright (c) 2015-2023 %s, %s\n", AUTHORS, WEBSITE);
+  printf ("Copyright (c) 2015-2025 %s, %s\n", AUTHORS, WEBSITE);
   printf ("This program comes with ABSOLUTELY NO WARRANTY.\n");
   printf ("This is free software, and you are welcome to redistribute it\n");
   printf ("under certain conditions; type 'mbpoll -w' for details.\n\n");
@@ -1448,6 +1501,9 @@ vUsage (FILE * stream, int exit_msg) {
            "  -l #          Poll rate in ms, ( > %d, %d is default)\n"
            "  -o #          Time-out in seconds (%.2f - %.2f, %.2f s is default)\n"
            "  -q            Quiet mode.  Minimum output only\n"
+           "  -x            Print address (reference) in hexadecimal format\n"
+           "  -Q            Enable MAX_SLAVE quirk (accept slave id 0-255)\n"
+           "  -X            Enable REPLY_TO_BROADCAST quirk (send reply to broadcast)\n"
            "Options for ModBus / TCP : \n"
            "  -p #          TCP port number (%s is default)\n"
            "Options for ModBus RTU : \n"
@@ -1619,7 +1675,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
   PDEBUG ("iGetIntList(%s)\n", sList);
 
-  // Comptage et vérification de la liste des entiers
+  // Count and verify the integer list
   while (*p) {
 
     i = strtol (p, &endptr, 0);
@@ -1632,9 +1688,9 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
     if (*p == ':') {
 
-      // i est le premier d'un plage first:last
+      // i is the first of a range first:last
       if (bIsLast) {
-        // il ne peut pas y avoir 2 * ':' de suite !
+        // Cannot have 2 ':' in a row!
         vSyntaxErrorExit ("Illegal %s delimiter: '%c'", name, *p);
       }
       PDEBUG ("Is First\n");
@@ -1646,7 +1702,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
       if (bIsLast) {
         int iRange, iLast;
 
-        // i est dernier d'une plage first:last
+        // i is the last of a range first:last
         iLast = MAX (iFirst, i);
         iFirst = MIN (iFirst, i);
         iRange = iLast - iFirst + 1;
@@ -1666,7 +1722,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
     if (*p) {
 
-      p++; // On passe le délimiteur
+      p++; // Skip the delimiter
     }
     PDEBUG ("iCount=%d\n", iCount);
   }
@@ -1676,8 +1732,11 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
     // Allocation
     iList = calloc (iCount, sizeof (int));
+    if (iList == NULL) {
+      vIoErrorExit ("Memory allocation failed for %s list", name);
+    }
 
-    // Affectation
+    // Assignment
     p = sList;
     while (*p) {
 
@@ -1686,7 +1745,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
       if (*p == ':') {
 
-        // i est le premier d'un plage first:last
+        // i is the first of a range first:last
         iFirst = i;
         bIsLast = true;
       }
@@ -1694,7 +1753,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
         if (bIsLast) {
 
-          // i est dernier d'une plage first:last
+          // i is the last of a range first:last
           int iLast = MAX (iFirst, i);
           iFirst = MIN (iFirst, i);
 
@@ -1712,7 +1771,7 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
 
       if (*p) {
 
-        p++; // On passe le délimiteur
+        p++; // Skip the delimiter
       }
     }
 #ifdef DEBUG

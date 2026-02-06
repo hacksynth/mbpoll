@@ -1,4 +1,4 @@
-/* Copyright © 2015-2019 Pascal JEAN, All rights reserved.
+/* Copyright © 2015-2025 Pascal JEAN, All rights reserved.
  *
  * mbpoll is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 /**
  * @enum eSerialDataBits
- * @brief Nombre de bits de données
+ * @brief Number of data bits
  */
 typedef enum {
   SERIAL_DATABIT_5 = 5,
@@ -30,7 +30,7 @@ typedef enum {
 
 /**
  * @enum eSerialParity
- * @brief Parité
+ * @brief Parity
  */
 typedef enum {
   SERIAL_PARITY_NONE = 'N',
@@ -43,7 +43,7 @@ typedef enum {
 
 /**
  * @enum eSerialStopBits
- * @brief Nombre de bits de stop
+ * @brief Number of stop bits
  */
 typedef enum {
   SERIAL_STOPBIT_ONE = 1,
@@ -54,90 +54,88 @@ typedef enum {
 
 /**
  * @enum eSerialFlow
- * @brief Type de contrôle de flux
- * 
- * @warning Les modes RS485 ne sont pas gérés par termios (spécifiques à linux)
+ * @brief Flow control type
+ *
+ * @warning RS485 modes are not handled by termios (Linux-specific)
  */
 typedef enum {
 
-  SERIAL_FLOW_NONE = ' ', /**< Pas de contrôle de flux */
-  SERIAL_FLOW_RTSCTS = 'H', /**< Contrôle de flux matériel RTS/CTS */
-  SERIAL_FLOW_XONXOFF = 'S', /**< Contrôle de flux logiciel XON/XOFF */
-  SERIAL_FLOW_RS485_RTS_AFTER_SEND = 'R', /**< RS485 half-duplex, RTS au niveau logique 0 après transmission */
-  SERIAL_FLOW_RS485_RTS_ON_SEND = 'r', /**< RS485 half-duplex, RTS au niveau logique 0 pendant transmission */
+  SERIAL_FLOW_NONE = ' ', /**< No flow control */
+  SERIAL_FLOW_RTSCTS = 'H', /**< Hardware flow control RTS/CTS */
+  SERIAL_FLOW_XONXOFF = 'S', /**< Software flow control XON/XOFF */
+  SERIAL_FLOW_RS485_RTS_AFTER_SEND = 'R', /**< RS485 half-duplex, RTS logic 0 after transmission */
+  SERIAL_FLOW_RS485_RTS_ON_SEND = 'r', /**< RS485 half-duplex, RTS logic 0 during transmission */
   SERIAL_FLOW_UNKNOWN = -1
 } eSerialFlow;
 
 /* structures =============================================================== */
 /**
- * Configuration d'un port série
+ * Serial port configuration
  */
 typedef struct xSerialIos {
-  long baud; /**< Vitesse de transmission, négative si erreur */
-  eSerialDataBits dbits; /**< Bits de données */
-  eSerialParity parity; /**< Parité */
-  eSerialStopBits sbits;/**< Bits de stop */
-  eSerialFlow flow;/**< Contrôle de flux */
-  int flag; /**< Réservé pour un usage futur */
+  long baud; /**< Baud rate, negative on error */
+  eSerialDataBits dbits; /**< Data bits */
+  eSerialParity parity; /**< Parity */
+  eSerialStopBits sbits;/**< Stop bits */
+  eSerialFlow flow;/**< Flow control */
+  int flag; /**< Reserved for future use */
 } xSerialIos;
 
 /* internal public functions ================================================ */
 
 /**
- * Chaîne de caractère décrivant la configuration correspondant aux paramètres
+ * Returns a string describing the configuration from parameters
  *
- * Le format est BBBBBB-DPSF avec :
+ * Format is BBBBBB-DPSF where:
  * - BBBBBB Baudrate
- * - D Data bits (5, 6, 7 ,8)
- * - P Parité (N, E, O)
+ * - D Data bits (5, 6, 7, 8)
+ * - P Parity (N, E, O)
  * - S Stop (1, 2)
  * - F Flow (H, S, R, r)
- * .
- * @return la représentation de la configuration sous forme de string, NULL si
- * erreur.
+ *
+ * @return string representation of configuration, NULL on error
  */
 const char * sSerialAttrToStr (const xSerialIos * xIos);
 
 /**
- *  Lecture du type de contrôle de flux en cours sous forme "lisible"
+ * Returns current flow control type as human-readable string
  *
- * @param fd le descripteur de fichier du port
+ * @param fd file descriptor of the port
  */
 const char * sSerialGetFlowStr (int fd);
 
 /**
- * Chaîne de caractère décrivant la configuration du port
+ * Returns a string describing the port configuration
  *
- * Le format est BBBBBB-DPSF avec :
+ * Format is BBBBBB-DPSF where:
  * - BBBBBB Baudrate
- * - D Data bits (5, 6, 7 ,8)
- * - P Parité (N, E, O)
+ * - D Data bits (5, 6, 7, 8)
+ * - P Parity (N, E, O)
  * - S Stop (1, 2)
  * - F Flow (H, S, R, r)
- * .
- * @param fd le descripteur de fichier du port
- * @return la représentation de la configuration sous forme de string, NULL si
- * erreur.
+ *
+ * @param fd file descriptor of the port
+ * @return string representation of configuration, NULL on error
  */
 const char * sSerialAttrStr (int fd);
 
 /**
- *  Chaîne de caractère correspondant à une valeur de contrôle de flux
+ * Returns string corresponding to a flow control value
  */
 const char * sSerialFlowToStr (eSerialFlow eFlow);
 
 /**
- *  Chaîne de caractère correspondant à une valeur de parité
+ * Returns string corresponding to a parity value
  */
 const char * sSerialParityToStr (eSerialParity eParity);
 
 /**
- *  Chaîne de caractère correspondant à une valeur de bits de données
+ * Returns string corresponding to a data bits value
  */
 const char * sSerialDataBitsToStr (eSerialDataBits eDataBits);
 
 /**
- *  Chaîne de caractère correspondant à une valeur de bits de stop
+ * Returns string corresponding to a stop bits value
  */
 const char * sSerialStopBitsToStr (eSerialStopBits eStopBits);
 

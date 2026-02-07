@@ -24,6 +24,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <float.h>
+#include <math.h>
 #include <inttypes.h>
 #include <modbus.h>
 #include <stdbool.h>
@@ -616,6 +617,10 @@ main (int argc, char **argv) {
             }
 
             // Identify contiguous batch
+            // Check for potential overflow before arithmetic
+            if (start_addr > INT_MAX - unit_size_regs) {
+              vSyntaxErrorExit ("Start reference %d too large for batch calculation", start_addr);
+            }
             int expected_next_addr = start_addr + unit_size_regs;
             k = j + 1;
             while (k < ctx.iStartCount) {
@@ -624,8 +629,16 @@ main (int argc, char **argv) {
               if (next_addr != expected_next_addr) {
                 break;
               }
+              // Check for overflow before max count calculation
+              if (next_addr > INT_MAX - unit_size_regs) {
+                break; // Avoid overflow, stop batch here
+              }
               // Check max count limit
               if ((next_addr + unit_size_regs - start_addr) > max_count) {
+                break;
+              }
+              // Check for overflow before next iteration
+              if (next_addr > INT_MAX - unit_size_regs) {
                 break;
               }
               expected_next_addr = next_addr + unit_size_regs;
@@ -634,7 +647,14 @@ main (int argc, char **argv) {
 
             // Perform batched read
             // Number of Modbus units (bits or registers) to read
+            // Safe: k >= 1, and we've checked for overflow above
             int read_qty = ctx.piStartRef[k - 1] + unit_size_regs - start_addr;
+
+            // Validate read_qty is within expected bounds
+            if (read_qty <= 0 || read_qty > max_count) {
+              vIoErrorExit ("Internal error: calculated read quantity %d out of bounds [1, %d]",
+                            read_qty, max_count);
+            }
             iStartReg = start_addr - ctx.iPduOffset;
 
             switch (ctx.eFunction) {
@@ -669,6 +689,11 @@ main (int argc, char **argv) {
               int m;
               for (m = j; m < k; m++) {
                 int offset_units = ctx.piStartRef[m] - start_addr;
+                // Validate offset is within buffer bounds
+                if (offset_units < 0 || offset_units >= read_qty) {
+                  vIoErrorExit ("Internal error: batch offset %d out of bounds [0, %d)",
+                                offset_units, read_qty);
+                }
                 if (is_bits) {
                   ctx.pvData = ((uint8_t *) batch_buffer) + offset_units;
                 }
@@ -945,6 +970,7 @@ vPrintConfig (const xMbPollContext * ctx) {
 
 // -----------------------------------------------------------------------------
 // Memory allocation for data to write or read
+// Includes overflow protection for size calculations
 void
 vAllocate (xMbPollContext * ctx) {
 
@@ -959,11 +985,17 @@ vAllocate (xMbPollContext * ctx) {
     case eFuncInputReg:
     case eFuncHoldingReg:
       if ( (ctx->eFormat == eFormatInt) || (ctx->eFormat == eFormatFloat)) {
-        // 32-bit registers
+        // 32-bit registers: check for overflow before multiplication
+        if (ulDataSize > SIZE_MAX / 4) {
+          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=4)", ulDataSize);
+        }
         ulDataSize *= 4;
       }
       else {
-        // 16-bit registers
+        // 16-bit registers: check for overflow before multiplication
+        if (ulDataSize > SIZE_MAX / 2) {
+          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=2)", ulDataSize);
+        }
         ulDataSize *= 2;
       }
       break;
@@ -996,8 +1028,11 @@ vCleanup (void) {
   free (ctx.pvData);
   free (ctx.piSlaveAddr);
   free (ctx.piStartRef);
-  modbus_close (ctx.xBus);
-  modbus_free (ctx.xBus);
+  // NULL check for modbus context - modbus_close/free don't handle NULL
+  if (ctx.xBus != NULL) {
+    modbus_close (ctx.xBus);
+    modbus_free (ctx.xBus);
+  }
   vChipIoClose(&ctx);
 
   if (g_bExitSignal == SIGINT) {
@@ -1302,14 +1337,20 @@ int
 iGetInt (const char * name, const char * num, int base) {
   char * endptr;
 
-  int i = strtol (num, &endptr, base);
-  if (endptr == num) {
+  errno = 0;
+  long lval = strtol (num, &endptr, base);
 
+  if (endptr == num) {
     vSyntaxErrorExit ("Illegal %s value: %s", name, num);
   }
 
-  PDEBUG ("Set %s=%d\n", name, i);
-  return i;
+  // Check for strtol overflow/underflow
+  if (errno == ERANGE || lval > INT_MAX || lval < INT_MIN) {
+    vSyntaxErrorExit ("%s value out of range: %s", name, num);
+  }
+
+  PDEBUG ("Set %s=%d\n", name, (int)lval);
+  return (int)lval;
 }
 
 // -----------------------------------------------------------------------------
@@ -1317,10 +1358,16 @@ double
 dGetDouble (const char * name, const char * num) {
   char * endptr;
 
+  errno = 0;
   double d = strtod (num, &endptr);
-  if (endptr == num) {
 
+  if (endptr == num) {
     vSyntaxErrorExit ("Illegal %s value: %s", name, num);
+  }
+
+  // Check for strtod overflow/underflow
+  if (errno == ERANGE || !isfinite(d)) {
+    vSyntaxErrorExit ("%s value out of range: %s", name, num);
   }
 
   PDEBUG ("Set %s=%g\n", name, d);

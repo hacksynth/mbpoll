@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include "utils.h"
 
 #ifdef DEBUG
@@ -9,6 +10,31 @@
 #else
 #define PDEBUG(...)
 #endif
+
+// -----------------------------------------------------------------------------
+// Weak implementation of vFailureExit for standalone compilation.
+// When linked with mbpoll.c, the stronger definition there takes precedence.
+// This enables utils.c to be compiled and tested independently.
+// -----------------------------------------------------------------------------
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+void
+vFailureExit (bool bHelp, const char *format, ...) {
+  va_list va;
+  va_start (va, format);
+  fprintf (stderr, "utils: ");
+  vfprintf (stderr, format, va);
+  if (bHelp) {
+    fprintf (stderr, " ! (syntax error)\n");
+  }
+  else {
+    fprintf (stderr, ".\n");
+  }
+  va_end (va);
+  fflush (stderr);
+  exit (EXIT_FAILURE);
+}
 
 // -----------------------------------------------------------------------------
 int *

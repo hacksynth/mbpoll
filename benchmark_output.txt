@@ -1,5 +1,5 @@
 mbpoll 1.0-0 - ModBus(R) Master Simulator
-Copyright (c) 2015-2023 Pascal JEAN, https://github.com/epsilonrt/mbpoll
+Copyright (c) 2015-2025 Pascal JEAN, https://github.com/epsilonrt/mbpoll
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions; type 'mbpoll -w' for details.

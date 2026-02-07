@@ -2,7 +2,7 @@
 set -e
 
 SERVER_BIN="./temp/libmodbus/tests/unit-test-server"
-MBPOLL_BIN="./build/mbpoll"
+MBPOLL_BIN="./build/bin/mbpoll"
 OUTPUT_FILE="benchmark_output.txt"
 
 # Kill any existing server

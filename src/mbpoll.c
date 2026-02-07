@@ -1035,6 +1035,10 @@ main (int argc, char **argv) {
           int j = 0;
 
           while (j < ctx.iStartCount) {
+            if (g_bExitSignal) {
+              break;
+            }
+
             int k;
             int start_addr = ctx.piStartRef[j];
             int unit_size_regs = iNbReg;
@@ -1115,16 +1119,18 @@ main (int argc, char **argv) {
               // On failure, we report error.
               // Note: This fails the whole batch.
               // We could fallback to single reads, but for now we report error.
-              ctx.iErrorCount++;
-              fprintf (stderr, "Read %s failed: %s\n",
-                       sFunctionToStr (ctx.eFunction),
-                       modbus_strerror (errno));
+              if (!g_bExitSignal) {
+                ctx.iErrorCount++;
+                fprintf (stderr, "Read %s failed: %s\n",
+                         sFunctionToStr (ctx.eFunction),
+                         modbus_strerror (errno));
+              }
             }
             // Advance
             j = k;
           }
           ctx.pvData = original_pvData;
-          if (ctx.bIsPolling) {
+          if (ctx.bIsPolling && !g_bExitSignal) {
 
             mb_delay (ctx.iPollRate);
           }

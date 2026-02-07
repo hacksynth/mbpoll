@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(mbpoll
-  VERSION 1.5.2
+  VERSION 1.5.3
   DESCRIPTION "ModBus Master Simulator"
   LANGUAGES C)
 
@@ -188,6 +188,13 @@ configure_file(
   IMMEDIATE @ONLY)
 add_custom_target(uninstall
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+# Testing support
+option(BUILD_TESTING "Build unit tests" ON)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 # CPack configuration for Debian packages
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})

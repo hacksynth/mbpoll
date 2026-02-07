@@ -816,22 +816,28 @@ main (int argc, char **argv) {
 
   // End of parameter value verification and context creation
   switch (ctx.eMode) {
-    case eModeRtu:
+    case eModeRtu: {
+      // Allow slave address 0 when MAX_SLAVE quirk is enabled (per -Q/-X options)
+      int iMinAddr = ctx.bEnableMaxSlaveQuirk ? 0 : RTU_SLAVEADDR_MIN;
       for (i = 0; i < ctx.iSlaveCount; i++) {
         vCheckIntRange (sSlaveAddrStr, ctx.piSlaveAddr[i],
-                        RTU_SLAVEADDR_MIN, SLAVEADDR_MAX);
+                        iMinAddr, SLAVEADDR_MAX);
       }
       ctx.xBus = modbus_new_rtu (ctx.sDevice, ctx.xRtu.baud, ctx.xRtu.parity,
                                  ctx.xRtu.dbits, ctx.xRtu.sbits);
       break;
+    }
 
-    case eModeTcp:
+    case eModeTcp: {
+      // Apply consistent quirk logic for symmetry (TCP_SLAVEADDR_MIN is already 0)
+      int iMinAddr = ctx.bEnableMaxSlaveQuirk ? 0 : TCP_SLAVEADDR_MIN;
       for (i = 0; i < ctx.iSlaveCount; i++) {
         vCheckIntRange (sSlaveAddrStr, ctx.piSlaveAddr[i],
-                        TCP_SLAVEADDR_MIN, SLAVEADDR_MAX);
+                        iMinAddr, SLAVEADDR_MAX);
       }
       ctx.xBus = modbus_new_tcp_pi (ctx.sDevice, ctx.sTcpPort);
       break;
+    }
 
     default:
       break;
@@ -1071,11 +1077,16 @@ main (int argc, char **argv) {
 // -----------------------------------------------------------------------------
 void
 vPrintReadValues (int iAddr, int iCount, xMbPollContext * ctx) {
-  const char *sAddrFormat = ctx->bPrintHex ? "[0x%04X]: \t" : "[%d]: \t";
   int i;
   for (i = 0; i < iCount; i++) {
 
-    printf (sAddrFormat, iAddr);
+    // Print address in hex or decimal format
+    // Using separate printf calls to avoid UB from %X with signed int
+    if (ctx->bPrintHex) {
+      printf ("[0x%04X]: \t", (unsigned int)iAddr);
+    } else {
+      printf ("[%d]: \t", iAddr);
+    }
 
     switch (ctx->eFormat) {
 

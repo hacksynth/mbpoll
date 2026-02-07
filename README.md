@@ -1,6 +1,6 @@
 # mbpoll
 
-Copyright © 2015-2025 Pascal JEAN, All rights reserved.
+Copyright © 2015-2023 Pascal JEAN, All rights reserved.
 
 
 ## Abstract
@@ -34,7 +34,7 @@ repository from [piduino.org](http://apt.piduino.org), so you should do the foll
     sudo apt update
     sudo apt install mbpoll
 
-This repository provides `mbpoll` and `libmodbus` (version 3.1.7) packages for 
+This repository provides `mbpoll` and `libmodbus` (version 3.1.4) packages for
 `i386`, `amd64`, `armhf` and `arm64` architectures.
 In the above commands, the repository is a Debian Stretch distribution, but you 
 can also choose Ubuntu Trusty, Xenial or Bionic by replacing `stretch` with 
@@ -61,7 +61,7 @@ Using [Homebrew](https://github.com/Homebrew/brew) to install mbpoll and its dep
 
 For example, for a debian system:
 
-* Install [libmodbus](https://github.com/stephane/libmodbus.git) (Version >= 3.1.7) :
+* Install [libmodbus](https://github.com/stephane/libmodbus.git) (Version >= 3.1.4) :
 
         $ sudo apt-get install build-essential libtool git-core autoconf automake
         $ git clone https://github.com/stephane/libmodbus.git
@@ -71,7 +71,7 @@ For example, for a debian system:
         $ make
         $ sudo make install
 
-You can also install it with `apt` if the version of libmodbus is greater than or equal to 3.1.7.
+You can also install it with `apt` if the version of libmodbus is greater than or equal to 3.1.4.
 For example to query a debian system:
 
     $ apt-cache show libmodbus-dev
@@ -205,9 +205,6 @@ A complete help is available with the -h option:
       -l #          Poll rate in ms, ( > 100, 1000 is default)
       -o #          Time-out in seconds (0.01 - 10.00, 1.00 s is default)
       -q            Quiet mode.  Minimum output only
-      -x            Print address (reference) in hexadecimal format
-      -Q            Enable MAX_SLAVE quirk (accept slave id 0-255)
-      -X            Enable REPLY_TO_BROADCAST quirk (send reply to broadcast)
     Options for ModBus / TCP : 
       -p #          TCP port number (502 is default)
     Options for ModBus RTU : 
@@ -226,7 +223,7 @@ A complete help is available with the -h option:
                     its progress.  This is helpful in debugging connection...
 
 ---
-> Copyright © 2015-2025 Pascal JEAN, All rights reserved.
+> Copyright © 2015-2023 Pascal JEAN, All rights reserved.
 
 > mbpoll is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

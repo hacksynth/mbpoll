@@ -1,5 +1,7 @@
 /* Copyright (c) 2015-2025 Pascal JEAN, All rights reserved. */
 
+#define _GNU_SOURCE
+
 #include "mbpoll.h"
 #include "chipio.h"
 #include <stdio.h>

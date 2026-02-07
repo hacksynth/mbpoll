@@ -79,6 +79,9 @@ iGetIntList (const char * name, const char * sList, int * iLen) {
     int iIndex = 0;
 
     // Allocation
+    if ((size_t)iCount > SIZE_MAX / sizeof(int)) {
+      vIoErrorExit ("Memory allocation size overflow for %s list", name);
+    }
     iList = calloc (iCount, sizeof (int));
     if (iList == NULL) {
       vIoErrorExit ("Memory allocation failed for %s list", name);

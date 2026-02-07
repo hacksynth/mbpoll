@@ -998,17 +998,8 @@ vCleanup (void) {
   free (ctx.piStartRef);
   modbus_close (ctx.xBus);
   modbus_free (ctx.xBus);
-<<<<<<< HEAD
   vChipIoClose(&ctx);
 
-=======
-#ifdef USE_CHIPIO
-// -----------------------------------------------------------------------------
-  vChipIoSerialDelete (xChipSerial);
-  iChipIoClose (xChip);
-// -----------------------------------------------------------------------------
-#endif /* USE_CHIPIO defined */
->>>>>>> 48e128e (Refactor lSwapLong/fSwapFloat to utils.c and add unit tests.)
   if (g_bExitSignal == SIGINT) {
     printf ("\neverything was closed.\nHave a nice day !\n");
   }
@@ -1306,159 +1297,7 @@ sFunctionToStr (eFunctions eFunction) {
 }
 
 // -----------------------------------------------------------------------------
-<<<<<<< HEAD
-=======
-void
-vPrintIntList (int * iList, int iLen) {
-  int i;
-  putchar ('[');
-  for (i = 0; i < iLen; i++) {
-    printf ("%d", iList[i]);
-    if (i != (iLen - 1)) {
-      putchar (',');
-    }
-    else {
-      putchar (']');
-    }
-  }
-}
-
 // -----------------------------------------------------------------------------
-int *
-iGetIntList (const char * name, const char * sList, int * iLen) {
-  // 12,3,5:9,45
-
-  int * iList = NULL;
-  int i, iFirst = 0, iCount = 0;
-  bool bIsLast = false;
-  const char * p = sList;
-  char * endptr;
-
-  PDEBUG ("iGetIntList(%s)\n", sList);
-
-  // Count and verify the integer list
-  while (*p) {
-
-    i = strtol (p, &endptr, 0);
-    if (endptr == p) {
-
-      vSyntaxErrorExit ("Illegal %s value: %s", name, p);
-    }
-    p = endptr;
-    PDEBUG ("Integer found: %d\n", i);
-
-    if (*p == ':') {
-
-      // i is the first of a range first:last
-      if (bIsLast) {
-        // Cannot have 2 ':' in a row!
-        vSyntaxErrorExit ("Illegal %s delimiter: '%c'", name, *p);
-      }
-      PDEBUG ("Is First\n");
-      iFirst = i;
-      bIsLast = true;
-    }
-    else if ( (*p == ',') || (*p == 0)) {
-
-      if (bIsLast) {
-        int iRange, iLast;
-
-        // i is the last of a range first:last
-        iLast = MAX (iFirst, i);
-        iFirst = MIN (iFirst, i);
-
-        if ((long long)iLast - (long long)iFirst + 1 > INT_MAX) {
-            vSyntaxErrorExit ("Range too large in %s", name);
-        }
-        iRange = iLast - iFirst + 1;
-        PDEBUG ("Is Last, add %d items\n", iRange);
-
-        if (iCount > INT_MAX - iRange) {
-             vSyntaxErrorExit ("List too large in %s", name);
-        }
-        iCount += iRange;
-        bIsLast = false;
-      }
-      else {
-
-        if (iCount == INT_MAX) {
-             vSyntaxErrorExit ("List too large in %s", name);
-        }
-        iCount++;
-      }
-    }
-    else {
-
-      vSyntaxErrorExit ("Illegal %s delimiter: '%c'", name, *p);
-    }
-
-    if (*p) {
-
-      p++; // Skip the delimiter
-    }
-    PDEBUG ("iCount=%d\n", iCount);
-  }
-
-  if (iCount > 0) {
-    int iIndex = 0;
-
-    // Allocation
-    iList = calloc (iCount, sizeof (int));
-    if (iList == NULL) {
-      vIoErrorExit ("Memory allocation failed for %s list", name);
-    }
-
-    // Assignment
-    p = sList;
-    while (*p) {
-
-      i = strtol (p, &endptr, 0);
-      p = endptr;
-
-      if (*p == ':') {
-
-        // i is the first of a range first:last
-        iFirst = i;
-        bIsLast = true;
-      }
-      else if ( (*p == ',') || (*p == 0)) {
-
-        if (bIsLast) {
-
-          // i is the last of a range first:last
-          int iLast = MAX (iFirst, i);
-          iFirst = MIN (iFirst, i);
-
-          for (i = iFirst; i <= iLast; i++) {
-
-            iList[iIndex++] = i;
-          }
-          bIsLast = false;
-        }
-        else {
-
-          iList[iIndex++] = i;
-        }
-      }
-
-      if (*p) {
-
-        p++; // Skip the delimiter
-      }
-    }
-#ifdef DEBUG
-    if (ctx.bIsVerbose) {
-      vPrintIntList (iList, iCount);
-      putchar ('\n');
-    }
-#endif
-  }
-  *iLen = iCount;
-  return iList;
-}
-
-// -----------------------------------------------------------------------------
->>>>>>> 48e128e (Refactor lSwapLong/fSwapFloat to utils.c and add unit tests.)
 int
 iGetInt (const char * name, const char * num, int base) {
   char * endptr;
@@ -1489,33 +1328,6 @@ dGetDouble (const char * name, const char * num) {
 }
 
 // -----------------------------------------------------------------------------
-float
-fSwapFloat (float f) {
-  if (ctx.bIsBigEndian) {
-    uint32_t u;
-    memcpy (&u, &f, sizeof (u));
-    u = ((u << 16) | (u >> 16));
-    memcpy (&f, &u, sizeof (f));
-  }
-  return f;
-}
-
-// -----------------------------------------------------------------------------
-<<<<<<< HEAD
-int32_t
-lSwapLong (int32_t l) {
-  if (ctx.bIsBigEndian) {
-    uint32_t u;
-    memcpy (&u, &l, sizeof (u));
-    u = ((u << 16) | (u >> 16));
-    memcpy (&l, &u, sizeof (l));
-  }
-  return l;
-}
-
-// -----------------------------------------------------------------------------
-=======
->>>>>>> 48e128e (Refactor lSwapLong/fSwapFloat to utils.c and add unit tests.)
 static void
 mb_delay (unsigned long d) {
 
@@ -1852,15 +1664,15 @@ parse_args (int argc, char **argv) {
 
           case eFuncHoldingReg:
             if (ctx.eFormat == eFormatInt) {
-              DINT32 (ctx.pvData, i) = lSwapLong (iGetInt (sDataStr, argv[arg], 10));
-              PDEBUG ("Int[%d]=%"PRId32"\n", i, lSwapLong (DINT32 (ctx.pvData, i)));
+              DINT32 (ctx.pvData, i) = lSwapLong (iGetInt (sDataStr, argv[arg], 10), ctx.bIsBigEndian);
+              PDEBUG ("Int[%d]=%"PRId32"\n", i, lSwapLong (DINT32 (ctx.pvData, i), ctx.bIsBigEndian));
             }
             else if (ctx.eFormat == eFormatFloat) {
               dValue = dGetDouble (sDataStr, argv[arg]);
               PDEBUG ("%g,%g\n", FLT_MIN, FLT_MAX);
               vCheckDoubleRange (sDataStr, dValue, -FLT_MAX, FLT_MAX);
-              DFLOAT (ctx.pvData, i) = fSwapFloat ( (float) dValue);
-              PDEBUG ("Float[%d]=%g\n", i, fSwapFloat (DFLOAT (ctx.pvData, i)));
+              DFLOAT (ctx.pvData, i) = fSwapFloat ( (float) dValue, ctx.bIsBigEndian);
+              PDEBUG ("Float[%d]=%g\n", i, fSwapFloat (DFLOAT (ctx.pvData, i), ctx.bIsBigEndian));
             }
             else if (ctx.eFormat == eFormatString) {
                 vSyntaxErrorExit ("You can use string format only for output");

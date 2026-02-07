@@ -34,7 +34,9 @@ if(NOT HAVE_GETOPT)
   set(GETOPT_SOURCES ${CMAKE_SOURCE_DIR}/3rdparty/getopt/getopt.c)
   set(GETOPT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/3rdparty/getopt)
   # Disable pedantic warnings for 3rdparty getopt (uses deprecated 'register' keyword)
-  set_source_files_properties(${GETOPT_SOURCES} PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+  if(NOT MSVC)
+    set_source_files_properties(${GETOPT_SOURCES} PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+  endif()
 endif()
 
 # Append cmake/ to module path

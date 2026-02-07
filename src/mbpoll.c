@@ -40,6 +40,8 @@
 #include "custom-rts.h"
 #include "version-git.h"
 #include "mbpoll-config.h"
+#include "mbpoll.h"
+#include "chipio.h"
 
 /* constants ================================================================ */
 #define AUTHORS "Pascal JEAN"
@@ -214,55 +216,6 @@ static const char sRtsPinStr[] = "RTS pin";
 #endif
 
 /* structures =============================================================== */
-typedef struct xChipIoContext xChipIoContext;
-
-typedef struct xMbPollContext {
-
-  // Parameters
-  eModes eMode;
-  eFunctions eFunction;
-  eFormats eFormat;
-  int * piSlaveAddr;
-  int iSlaveCount;
-  int * piStartRef;
-  int iStartCount;
-  int iCount;
-  int iPollRate;
-  double dTimeout;
-  char * sTcpPort;
-  char * sDevice;
-  xSerialIos xRtu;
-  int iRtuBaudrate;
-  eSerialDataBits eRtuDatabits;
-  eSerialStopBits eRtuStopbits;
-  eSerialParity eRtuParity;
-  bool bIsVerbose;
-  bool bIsPolling;
-  int  iRtuMode;
-  bool bIsWrite;
-  bool bIsReportSlaveID;
-  bool bIsDefaultMode;
-  int iPduOffset;
-  bool bWriteSingleAsMany;
-  bool bIsChipIo;
-  bool bIsBigEndian;
-  bool bIsQuiet;
-  bool bPrintHex;
-  bool bEnableMaxSlaveQuirk;
-  bool bEnableReplyToBroadcastQuirk;
-#ifdef MBPOLL_GPIO_RTS
-  int iRtsPin;
-#endif
-
-  // Working variables
-  modbus_t * xBus;
-  void * pvData;
-  int iTxCount;
-  int iRxCount;
-  int iErrorCount;
-
-  xChipIoContext * xChip; // TODO: separate the chipio part
-} xMbPollContext;
 
 /* private variables ======================================================== */
 
@@ -1073,12 +1026,8 @@ vCleanup (void) {
   free (ctx.piStartRef);
   modbus_close (ctx.xBus);
   modbus_free (ctx.xBus);
-#ifdef USE_CHIPIO
-// -----------------------------------------------------------------------------
-  vChipIoSerialDelete (xChipSerial);
-  iChipIoClose (xChip);
-// -----------------------------------------------------------------------------
-#endif /* USE_CHIPIO defined */
+  vChipIoClose(&ctx);
+
   if (g_bExitSignal == SIGINT) {
     printf ("\neverything was closed.\nHave a nice day !\n");
   }

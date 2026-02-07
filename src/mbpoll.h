@@ -108,10 +108,7 @@ typedef struct xMbPollContext {
 /* helper functions ========================================================= */
 void vCheckIntRange (const char * sName, int i, int min, int max);
 int iGetInt (const char * sName, const char * sNum, int iBase);
-void vFailureExit (bool bHelp, const char *format, ...);
-
-#define vSyntaxErrorExit(fmt,...) vFailureExit(true,fmt,##__VA_ARGS__)
-#define vIoErrorExit(fmt,...) vFailureExit(false,fmt,##__VA_ARGS__)
+#include "utils.h"
 
 #ifdef __cplusplus
 }

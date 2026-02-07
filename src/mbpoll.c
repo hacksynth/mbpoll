@@ -76,30 +76,8 @@
 #endif
 
 /* types ==================================================================== */
-typedef enum {
-  eModeRtu,
-  eModeTcp,
-  eModeUnknown = -1,
-} eModes;
 
-typedef enum {
-  eFuncCoil = 0,
-  eFuncDiscreteInput = 1,
-  eFuncInputReg = 3,
-  eFuncHoldingReg = 4,
-  eFuncUnknown = -1,
-} eFunctions;
 
-typedef enum {
-  eFormatDec,
-  eFormatInt16,
-  eFormatHex,
-  eFormatString,
-  eFormatInt,
-  eFormatFloat,
-  eFormatBin,
-  eFormatUnknown = -1,
-} eFormats;
 
 /* macros =================================================================== */
 #define SIZEOF_ILIST(list) (sizeof(list)/sizeof(int))
@@ -307,9 +285,6 @@ void vHello (void);
 void vVersion (void);
 void vWarranty (void);
 void vUsage (FILE *stream, int exit_msg);
-void vFailureExit (bool bHelp, const char *format, ...);
-#define vSyntaxErrorExit(fmt,...) vFailureExit(true,fmt,##__VA_ARGS__)
-#define vIoErrorExit(fmt,...) vFailureExit(false,fmt,##__VA_ARGS__)
 void vCheckEnum (const char * sName, int iElmt, const int * iList, int iSize);
 void vCheckIntRange (const char * sName, int i, int min, int max);
 void vCheckDoubleRange (const char * sName, double d, double min, double max);
@@ -1584,7 +1559,6 @@ parse_args (int argc, char **argv) {
     ctx.iStartCount = 1;
   }
 
-  int i;
   if (ctx.iPduOffset) {
     for (i = 0; i < ctx.iStartCount; i++) {
       vCheckIntRange (sStartRefStr, ctx.piStartRef[i],

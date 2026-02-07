@@ -88,6 +88,8 @@ set(MBPOLL_SOURCES
   ${CMAKE_SOURCE_DIR}/src/mbpoll.c
   ${CMAKE_SOURCE_DIR}/src/custom-rts.c
   ${CMAKE_SOURCE_DIR}/src/serial.c
+  ${CMAKE_SOURCE_DIR}/src/chipio.c
+  ${CMAKE_SOURCE_DIR}/src/utils.c
   ${LIBMODBUS_SRCS}
   ${GETOPT_SOURCES})
 

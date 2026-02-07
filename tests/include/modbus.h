@@ -53,3 +53,4 @@ int modbus_get_byte_timeout(modbus_t *ctx, uint32_t *to_sec, uint32_t *to_usec);
 int modbus_set_response_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec);
 
 #endif /* _MODBUS_H_ */
+int modbus_get_slave(modbus_t *ctx);

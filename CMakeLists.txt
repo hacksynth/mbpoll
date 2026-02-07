@@ -151,6 +151,7 @@ endif()
 
 # Compile definitions
 target_compile_definitions(mbpoll PRIVATE _GNU_SOURCE)
+target_compile_definitions(mbpoll PRIVATE SKIP_FAILURE_EXIT)
 
 if(MBPOLL_GPIO_RTS)
   target_compile_definitions(mbpoll PRIVATE MBPOLL_GPIO_RTS)

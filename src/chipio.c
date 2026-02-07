@@ -1,13 +1,21 @@
 /* Copyright (c) 2015-2025 Pascal JEAN, All rights reserved. */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include "mbpoll.h"
 #include "chipio.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+#ifdef _WIN32
+  #define strcasecmp _stricmp
+  #define strncasecmp _strnicmp
+  #define strcasestr strstr // Approximate, or implement proper strcasestr for Windows if needed
+#else
+  #include <strings.h>
+#endif
 
 #ifdef USE_CHIPIO
 static const char sChipIoSlaveAddrStr[] = "chipio slave address";

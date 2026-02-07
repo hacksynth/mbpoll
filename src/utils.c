@@ -16,6 +16,7 @@
 // When linked with mbpoll.c, the stronger definition there takes precedence.
 // This enables utils.c to be compiled and tested independently.
 // -----------------------------------------------------------------------------
+#ifndef SKIP_FAILURE_EXIT
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
@@ -35,6 +36,7 @@ vFailureExit (bool bHelp, const char *format, ...) {
   fflush (stderr);
   exit (EXIT_FAILURE);
 }
+#endif
 
 // -----------------------------------------------------------------------------
 int *

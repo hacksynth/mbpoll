@@ -1,4 +1,4 @@
-/* Copyright © 2015-2019 Pascal JEAN, All rights reserved.
+/* Copyright © 2015-2025 Pascal JEAN, All rights reserved.
  *
  * mbpoll is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,4 +42,6 @@ set_custom_rts (modbus_t *ctx, int on) {
 }
 // -----------------------------------------------------------------------------
 #endif /* MBPOLL_GPIO_RTS defined */
+
+typedef int _make_iso_compilers_happy;
 /* ========================================================================== */

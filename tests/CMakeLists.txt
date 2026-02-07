@@ -1,0 +1,10 @@
+# Test targets for mbpoll
+# Unit tests for serial module functions
+
+# Enable testing with CTest
+enable_testing()
+
+# Serial module tests
+add_executable(test_serial test_serial.c ../src/serial.c)
+target_include_directories(test_serial PRIVATE ../src)
+add_test(NAME test_serial COMMAND test_serial)

@@ -34,7 +34,7 @@ repository from [piduino.org](http://apt.piduino.org), so you should do the foll
     sudo apt update
     sudo apt install mbpoll
 
-This repository provides `mbpoll` and `libmodbus` (version 3.1.7) packages for 
+This repository provides `mbpoll` and `libmodbus` (version 3.1.7) packages for
 `i386`, `amd64`, `armhf` and `arm64` architectures.
 In the above commands, the repository is a Debian Stretch distribution, but you 
 can also choose Ubuntu Trusty, Xenial or Bionic by replacing `stretch` with 

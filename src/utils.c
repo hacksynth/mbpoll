@@ -149,3 +149,39 @@ vPrintIntList (int * iList, int iLen) {
     }
   }
 }
+
+// -----------------------------------------------------------------------------
+int32_t lSwapLong(int32_t l, bool bIsBigEndian) {
+    if (!bIsBigEndian) {
+        return l;
+    }
+    int32_t ret;
+    uint16_t tmp[2];
+    uint16_t swapped[2];
+
+    memcpy(tmp, &l, sizeof(l));
+
+    swapped[0] = tmp[1];
+    swapped[1] = tmp[0];
+
+    memcpy(&ret, swapped, sizeof(ret));
+    return ret;
+}
+
+// -----------------------------------------------------------------------------
+float fSwapFloat(float f, bool bIsBigEndian) {
+    if (!bIsBigEndian) {
+        return f;
+    }
+    float ret;
+    uint16_t tmp[2];
+    uint16_t swapped[2];
+
+    memcpy(tmp, &f, sizeof(f));
+
+    swapped[0] = tmp[1];
+    swapped[1] = tmp[0];
+
+    memcpy(&ret, swapped, sizeof(ret));
+    return ret;
+}

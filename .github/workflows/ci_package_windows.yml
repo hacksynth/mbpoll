@@ -2,6 +2,7 @@ name: Build Windows Setup
 
 on:
   push:
+    branches: [ master, main, dev ]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -78,8 +79,24 @@ jobs:
         name: mbpoll-setup-${{ steps.version.outputs.VERSION }}
         path: package/win/installer/*.exe
 
-    - name: Upload to Release
+    - name: Check tag is on master or main
       if: startsWith(github.ref, 'refs/tags/v')
+      id: check_branch
+      shell: pwsh
+      run: |
+        $branches = git branch -r --contains $env:GITHUB_SHA
+        if ($branches -match 'origin/master|origin/main') {
+          echo "ON_MAIN=true" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "Tag is not on master/main, skipping release"
+          echo "ON_MAIN=false" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/v') && steps.check_branch.outputs.ON_MAIN == 'true'
       uses: softprops/action-gh-release@v2
       with:
         files: package/win/installer/*.exe
+        generate_release_notes: true
+        draft: false
+        prerelease: false

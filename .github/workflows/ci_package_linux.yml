@@ -1,0 +1,76 @@
+name: Build Linux Package
+
+on:
+  push:
+    branches: [ master, main, dev ]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake pkg-config libmodbus-dev
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run tests
+      run: ctest --test-dir build --build-config Release --output-on-failure
+
+    - name: Check binary
+      run: |
+        ./build/bin/mbpoll -V
+        ./build/bin/mbpoll -h || true
+
+    - name: Build Debian package
+      run: |
+        cd build
+        cpack -G DEB
+
+    - name: Get package info
+      id: pkg
+      run: |
+        DEB_FILE=$(ls build/*.deb)
+        echo "DEB_FILE=$DEB_FILE" >> $GITHUB_OUTPUT
+        echo "DEB_NAME=$(basename $DEB_FILE .deb)" >> $GITHUB_OUTPUT
+        dpkg-deb --info $DEB_FILE
+        echo "---"
+        dpkg-deb --contents $DEB_FILE
+
+    - name: Upload Debian package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.pkg.outputs.DEB_NAME }}
+        path: build/*.deb
+
+    - name: Check tag is on master or main
+      if: startsWith(github.ref, 'refs/tags/v')
+      id: check_branch
+      run: |
+        BRANCHES=$(git branch -r --contains $GITHUB_SHA)
+        if echo "$BRANCHES" | grep -qE 'origin/master|origin/main'; then
+          echo "ON_MAIN=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag is not on master/main, skipping release"
+          echo "ON_MAIN=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/v') && steps.check_branch.outputs.ON_MAIN == 'true'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: build/*.deb
+        generate_release_notes: true
+        draft: false
+        prerelease: false

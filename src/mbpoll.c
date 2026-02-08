@@ -13,7 +13,9 @@
  * You should have received a copy of the GNU General Public License
  * along with mbpoll.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -24,6 +26,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <float.h>
+#include <math.h>
 #include <inttypes.h>
 #include <modbus.h>
 #include <stdbool.h>
@@ -40,6 +43,8 @@
 #include "custom-rts.h"
 #include "version-git.h"
 #include "mbpoll-config.h"
+#include "mbpoll.h"
+#include "chipio.h"
 
 /* constants ================================================================ */
 #define AUTHORS "Pascal JEAN"
@@ -74,30 +79,8 @@
 #endif
 
 /* types ==================================================================== */
-typedef enum {
-  eModeRtu,
-  eModeTcp,
-  eModeUnknown = -1,
-} eModes;
 
-typedef enum {
-  eFuncCoil = 0,
-  eFuncDiscreteInput = 1,
-  eFuncInputReg = 3,
-  eFuncHoldingReg = 4,
-  eFuncUnknown = -1,
-} eFunctions;
 
-typedef enum {
-  eFormatDec,
-  eFormatInt16,
-  eFormatHex,
-  eFormatString,
-  eFormatInt,
-  eFormatFloat,
-  eFormatBin,
-  eFormatUnknown = -1,
-} eFormats;
 
 /* macros =================================================================== */
 #define SIZEOF_ILIST(list) (sizeof(list)/sizeof(int))
@@ -214,57 +197,10 @@ static const char sRtsPinStr[] = "RTS pin";
 #endif
 
 /* structures =============================================================== */
-typedef struct xChipIoContext xChipIoContext;
-
-typedef struct xMbPollContext {
-
-  // Parameters
-  eModes eMode;
-  eFunctions eFunction;
-  eFormats eFormat;
-  int * piSlaveAddr;
-  int iSlaveCount;
-  int * piStartRef;
-  int iStartCount;
-  int iCount;
-  int iPollRate;
-  double dTimeout;
-  char * sTcpPort;
-  char * sDevice;
-  xSerialIos xRtu;
-  int iRtuBaudrate;
-  eSerialDataBits eRtuDatabits;
-  eSerialStopBits eRtuStopbits;
-  eSerialParity eRtuParity;
-  bool bIsVerbose;
-  bool bIsPolling;
-  int  iRtuMode;
-  bool bIsWrite;
-  bool bIsReportSlaveID;
-  bool bIsDefaultMode;
-  int iPduOffset;
-  bool bWriteSingleAsMany;
-  bool bIsChipIo;
-  bool bIsBigEndian;
-  bool bIsQuiet;
-  bool bPrintHex;
-  bool bEnableMaxSlaveQuirk;
-  bool bEnableReplyToBroadcastQuirk;
-#ifdef MBPOLL_GPIO_RTS
-  int iRtsPin;
-#endif
-
-  // Working variables
-  modbus_t * xBus;
-  void * pvData;
-  int iTxCount;
-  int iRxCount;
-  int iErrorCount;
-
-  xChipIoContext * xChip; // TODO: separate the chipio part
-} xMbPollContext;
 
 /* private variables ======================================================== */
+
+static volatile sig_atomic_t g_bExitSignal = 0;
 
 static xMbPollContext ctx = {
   // Parameters
@@ -342,6 +278,7 @@ static const char * short_options = "m:a:r:c:t:1l:o:p:b:d:s:P:u0WRFhVvwBqxQX";
 #endif /* USE_CHIPIO == 0 */
 
 /* private functions ======================================================== */
+static void parse_args (int argc, char **argv);
 void vAllocate (xMbPollContext * ctx);
 void vPrintReadValues (int iAddr, int iCount, xMbPollContext * ctx);
 void vPrintConfig (const xMbPollContext * ctx);
@@ -351,15 +288,10 @@ void vHello (void);
 void vVersion (void);
 void vWarranty (void);
 void vUsage (FILE *stream, int exit_msg);
-void vFailureExit (bool bHelp, const char *format, ...);
-#define vSyntaxErrorExit(fmt,...) vFailureExit(true,fmt,##__VA_ARGS__)
-#define vIoErrorExit(fmt,...) vFailureExit(false,fmt,##__VA_ARGS__)
 void vCheckEnum (const char * sName, int iElmt, const int * iList, int iSize);
 void vCheckIntRange (const char * sName, int i, int min, int max);
 void vCheckDoubleRange (const char * sName, double d, double min, double max);
 int iGetInt (const char * sName, const char * sNum, int iBase);
-int * iGetIntList (const char * sName, const char * sList, int * iLen);
-void vPrintIntList (int * iList, int iLen);
 double dGetDouble (const char * sName, const char * sNum);
 int iGetEnum (const char * sName, char * sElmt, const char ** psStrList,
               const int * iList, int iSize);
@@ -367,10 +299,9 @@ const char * sEnumToStr (int iElmt, const int * iList,
                          const char ** psStrList, int iSize);
 const char * sFunctionToStr (eFunctions eFunction);
 const char * sModeToStr (eModes eMode);
+void vCleanup (void);
 void vSigIntHandler (int sig);
-float fSwapFloat (float f);
-int32_t lSwapLong (int32_t l);
-void mb_delay (unsigned long d);
+static void mb_delay (unsigned long d);
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 // Portage des fonctions Microsoft
@@ -442,377 +373,15 @@ index (const char *s, int c) {
 
 #endif
 
+
 /* main ===================================================================== */
 
 int
 main (int argc, char **argv) {
-  int iNextOption, iRet = 0;
-  char * p;
-
-  progname = argv[0];
-
-  do  {
-
-    iNextOption = getopt (argc, argv, short_options);
-    opterr = 0;
-    switch (iNextOption) {
-
-      case 'v':
-        ctx.bIsVerbose = true;
-        PDEBUG ("debug enabled\n");
-        break;
-
-      case 'm':
-        ctx.eMode = iGetEnum (sModeStr, optarg, sModeList,
-                              iModeList, SIZEOF_ILIST (iModeList));
-        ctx.bIsDefaultMode = false;
-        break;
-
-      case 'a':
-        ctx.piSlaveAddr = iGetIntList (sSlaveAddrStr, optarg, &ctx.iSlaveCount);
-        // Verification depends on mode
-        break;
-
-      case 'r':
-        ctx.piStartRef = iGetIntList (sStartRefStr, optarg, &ctx.iStartCount);
-        break;
-
-      case 'c':
-        ctx.iCount = iGetInt (sNumOfValuesStr, optarg, 0);
-        vCheckIntRange (sNumOfValuesStr, ctx.iCount,
-                        NUMOFVALUES_MIN, NUMOFVALUES_MAX);
-        ctx.bIsWrite = false;
-        break;
-
-      case 't':
-        ctx.eFunction = iGetInt (sFunctionStr, optarg, 0);
-        vCheckEnum (sFunctionStr, ctx.eFunction,
-                    iFunctionList, SIZEOF_ILIST (iFunctionList));
-        p = index (optarg, ':');
-        if (p) {
-          ctx.eFormat = iGetEnum (sFormatStr, p + 1, sFormatList, iFormatList,
-                                  SIZEOF_ILIST (iFormatList));
-        }
-        break;
-
-      case 'u':
-        ctx.bIsReportSlaveID = true;
-        break;
-
-      case '1':
-        ctx.bIsPolling = false;
-        break;
-
-      case 'B':
-        ctx.bIsBigEndian = true;
-        break;
-
-      case 'R':
-        ctx.iRtuMode = MODBUS_RTU_RTS_DOWN;
-#ifdef MBPOLL_GPIO_RTS
-        if (optarg) {
-          ctx.iRtsPin = iGetInt (sRtsPinStr, optarg, 10);
-        }
-#endif
-        break;
-
-      case 'F':
-        ctx.iRtuMode = MODBUS_RTU_RTS_UP;
-#ifdef MBPOLL_GPIO_RTS
-        if (optarg) {
-          ctx.iRtsPin = iGetInt (sRtsPinStr, optarg, 10);
-        }
-#endif
-        break;
-
-      case '0':
-        ctx.iPduOffset = 0;
-        break;
-
-      case 'W':
-        ctx.bWriteSingleAsMany = true;
-        break;
-
-      case 'l':
-        ctx.iPollRate = iGetInt (sPollRateStr, optarg, 0);
-        if (ctx.iPollRate < POLLRATE_MIN) {
-
-          vSyntaxErrorExit ("Illegal %s: %d", sPollRateStr, ctx.iPollRate);
-        }
-        break;
-
-      case 'o':
-        ctx.dTimeout = dGetDouble (sTimeoutStr, optarg);
-        vCheckDoubleRange (sTimeoutStr, ctx.dTimeout, TIMEOUT_MIN, TIMEOUT_MAX);
-        break;
-
-      case 'q':
-        ctx.bIsQuiet = true;
-        break;
-
-      case 'x':
-        ctx.bPrintHex = true;
-        break;
-
-      case 'Q':
-        ctx.bEnableMaxSlaveQuirk = true;
-        break;
-
-      case 'X':
-        ctx.bEnableReplyToBroadcastQuirk = true;
-        break;
-
-        // TCP -----------------------------------------------------------------
-      case 'p':
-        ctx.sTcpPort = optarg;
-        break;
-
-        // RTU -----------------------------------------------------------------
-      case 'b':
-        ctx.xRtu.baud = iGetInt (sRtuBaudrateStr, optarg, 0);
-        vCheckIntRange (sRtuBaudrateStr, ctx.xRtu.baud, RTU_BAUDRATE_MIN,
-                        RTU_BAUDRATE_MAX);
-        break;
-      case 'd':
-        ctx.xRtu.dbits = iGetEnum (sRtuDatabitsStr, optarg, sDatabitsList,
-                                   iDatabitsList, SIZEOF_ILIST (iDatabitsList));
-        break;
-      case 's':
-        ctx.xRtu.sbits = iGetEnum (sRtuStopbitsStr, optarg, sStopbitsList,
-                                   iStopbitsList, SIZEOF_ILIST (iStopbitsList));
-        break;
-      case 'P':
-        ctx.xRtu.parity = iGetEnum (sRtuParityStr, optarg, sParityList,
-                                    iParityList, SIZEOF_ILIST (iParityList));
-        break;
-
-#ifdef USE_CHIPIO
-// -----------------------------------------------------------------------------
-        // ChipIo --------------------------------------------------------------
-      case 'i':
-        iChipIoSlaveAddr = iGetInt (sChipIoSlaveAddrStr, optarg, 0);
-        vCheckIntRange (sChipIoSlaveAddrStr, iChipIoSlaveAddr,
-                        CHIPIO_SLAVEADDR_MIN, CHIPIO_SLAVEADDR_MAX);
-        ctx.bIsChipIo = true;
-        break;
-
-      case 'n':
-        iChipIoIrqPin = iGetInt (sChipIoIrqPinStr, optarg, 0);
-        ctx.bIsChipIo = true;
-        break;
-// -----------------------------------------------------------------------------
-#endif /* USE_CHIPIO defined */
-
-        // Misc. ---------------------------------------------------------------
-      case 'h':
-        vUsage (stdout, EXIT_SUCCESS);
-        break;
-
-      case 'V':
-        vVersion();
-        break;
-
-      case 'w':
-        vWarranty();
-        break;
-
-      case '?': /* An invalid option has been used */
-        vSyntaxErrorExit ("Unrecognized option or missing option parameter");
-        break;
-    }
-  }
-  while (iNextOption != -1);
-
-  if (ctx.iStartCount == -1) {
-    ctx.piStartRef = malloc (sizeof (int));
-    if (ctx.piStartRef == NULL) {
-      vIoErrorExit ("Memory allocation failed for start reference");
-    }
-    ctx.piStartRef[0] = DEFAULT_STARTREF;
-    ctx.iStartCount = 1;
-  }
-
+  int iRet = 0;
   int i;
-  if (ctx.iPduOffset) {
-    for (i = 0; i < ctx.iStartCount; i++) {
-      vCheckIntRange (sStartRefStr, ctx.piStartRef[i],
-                      STARTREF_MIN, STARTREF_MAX);
-    }
-  }
-  else {
-    for (i = 0; i < ctx.iStartCount; i++) {
-      vCheckIntRange (sStartRefStr, ctx.piStartRef[i],
-                      STARTREF_MIN - 1, STARTREF_MAX - 1);
-    }
-  }
 
-  // ignore iCount > 1 if start ref list contains more then one value
-  if ((ctx.iStartCount > 1) && (ctx.iCount > 1)) {
-    ctx.iCount = 1;
-  }
-
-  // Coils and Discrete inputs are always binary
-  if ( (ctx.eFunction == eFuncCoil) || (ctx.eFunction == eFuncDiscreteInput)) {
-
-    ctx.eFormat = eFormatBin;
-  }
-
-  // Read serial port or host
-  if (optind == argc) {
-
-    vSyntaxErrorExit ("device or host parameter missing");
-  }
-  ctx.sDevice = argv[optind];
-
-  if ( (strcasestr (ctx.sDevice, "com") || strcasestr (ctx.sDevice, "tty") ||
-        strcasestr (ctx.sDevice, "ser")) && ctx.bIsDefaultMode) {
-
-    // Default mode for serial port
-    ctx.eMode = eModeRtu;
-    PDEBUG ("Set mode to RTU for serial port\n");
-  }
-#ifdef USE_CHIPIO
-// -----------------------------------------------------------------------------
-  else if ( (strcasestr (ctx.sDevice, "i2c") && ctx.bIsDefaultMode) ||
-            ctx.bIsChipIo) {
-
-    // Ouverture de la liaison i2c vers le chipio
-    xChip = xChipIoOpen (ctx.sDevice, iChipIoSlaveAddr);
-    if (xChip) {
-      xDin xChipIrqPin = { .num = iChipIoIrqPin, .act = true,
-                           .pull = ePullOff
-                         };
-      // Create virtual serial port
-      xChipSerial = xChipIoSerialNew (xChip, &xChipIrqPin);
-      if (xChipSerial) {
-
-        // The virtual serial port will be used by libmodbus as a normal port
-        ctx.sDevice = sChipIoSerialPortName (xChipSerial);
-        if (iChipIoSerialSetAttr (xChipSerial, &ctx.xRtu) != 0) {
-
-          vIoErrorExit ("Unable to set-up serial chipio port");
-        }
-      }
-      else {
-
-        vIoErrorExit ("serial chipio port failure");
-      }
-    }
-    else {
-
-      vIoErrorExit ("chipio not found");
-    }
-
-    ctx.eMode = eModeRtu;
-    ctx.bIsChipIo = true;
-    PDEBUG ("Set mode to RTU for chipio serial port\n");
-  }
-// -----------------------------------------------------------------------------
-#endif /* USE_CHIPIO defined */
-  PDEBUG ("Set device=%s\n", ctx.sDevice);
-
-  if ( (ctx.bIsReportSlaveID) && (ctx.eMode != eModeRtu)) {
-
-    vSyntaxErrorExit ("-u is available only in RTU mode");
-  }
-
-  if (! ctx.bIsReportSlaveID) {
-
-    // Calculate number of data to write
-    int iNbToWrite = MAX (0, argc - optind - 1);
-    if (iNbToWrite) {
-      if (!ctx.bIsWrite) {
-
-        // -c option provided for reading with data to write!
-        vSyntaxErrorExit ("-c parameter must not be specified for writing");
-      }
-      ctx.bIsPolling = false;
-      ctx.iCount = iNbToWrite;
-      PDEBUG ("%d write data have been found\n", iNbToWrite);
-    }
-    else {
-      ctx.bIsWrite = false;
-    }
-
-    // Allocate necessary memory
-    vAllocate (&ctx);
-
-    // Retrieve data to write from command line
-    if (iNbToWrite) {
-      int iValue, i = 0, arg;
-      double dValue;
-
-      for (arg = optind + 1; arg < argc; arg++, i++) {
-
-        switch (ctx.eFunction) {
-
-          case eFuncDiscreteInput:
-          case eFuncInputReg:
-            vSyntaxErrorExit ("Unable to write read-only element");
-            break;
-
-          case eFuncCoil:
-            // 1 octets contient 8 coils
-            iValue = iGetInt (sDataStr, argv[arg], 10);
-            vCheckIntRange (sDataStr, iValue, 0, 1);
-            DUINT8 (ctx.pvData, i) = (uint8_t) iValue;
-            PDEBUG ("Byte[%d]=%d\n", i, DUINT8 (ctx.pvData, i));
-            break;
-            break;
-
-          case eFuncHoldingReg:
-            if (ctx.eFormat == eFormatInt) {
-              DINT32 (ctx.pvData, i) = lSwapLong (iGetInt (sDataStr, argv[arg], 10));
-              PDEBUG ("Int[%d]=%"PRId32"\n", i, lSwapLong (DINT32 (ctx.pvData, i)));
-            }
-            else if (ctx.eFormat == eFormatFloat) {
-              dValue = dGetDouble (sDataStr, argv[arg]);
-              PDEBUG ("%g,%g\n", FLT_MIN, FLT_MAX);
-              vCheckDoubleRange (sDataStr, dValue, -FLT_MAX, FLT_MAX);
-              DFLOAT (ctx.pvData, i) = fSwapFloat ( (float) dValue);
-              PDEBUG ("Float[%d]=%g\n", i, fSwapFloat (DFLOAT (ctx.pvData, i)));
-            }
-            else if (ctx.eFormat == eFormatString) {
-                vSyntaxErrorExit ("You can use string format only for output");
-            }
-            else if (ctx.eFormat == eFormatInt16) {
-              iValue = iGetInt (sDataStr, argv[arg], 0);
-              vCheckIntRange (sDataStr, iValue, INT16_MIN, INT16_MAX);
-              DUINT16 (ctx.pvData, i) = (uint16_t) iValue;
-              PDEBUG ("Word[%d]=0x%X\n", i, DUINT16 (ctx.pvData, i));
-            }
-            else {
-              iValue = iGetInt (sDataStr, argv[arg], 0);
-              vCheckIntRange (sDataStr, iValue, 0, UINT16_MAX);
-              DUINT16 (ctx.pvData, i) = (uint16_t) iValue;
-              PDEBUG ("Word[%d]=0x%X\n", i, DUINT16 (ctx.pvData, i));
-            }
-            break;
-
-          default: // Impossible, value has been verified, prevents gcc warning
-            break;
-        }
-      }
-    }
-  }
-
-  if ( (ctx.iSlaveCount > 1) && ( (ctx.bIsWrite) || (ctx.bIsReportSlaveID))) {
-    vSyntaxErrorExit ("You can give a slave address list only for reading");
-  }
-
-  if ( (ctx.iStartCount > 1) && (ctx.bIsWrite) ) {
-    vSyntaxErrorExit ("You can give a start ref list only for reading");
-  }
-
-  if (ctx.iSlaveCount == -1) {
-
-    ctx.piSlaveAddr = malloc (sizeof (int));
-    if (ctx.piSlaveAddr == NULL) {
-      vIoErrorExit ("Memory allocation failed for slave address");
-    }
-    ctx.piSlaveAddr[0] = DEFAULT_SLAVEADDR;
-    ctx.iSlaveCount = 1;
-  }
+  parse_args (argc, argv);
 
   // End of parameter value verification and context creation
   switch (ctx.eMode) {
@@ -932,6 +501,9 @@ main (int argc, char **argv) {
 
     // Start of polling loop
     do {
+      if (g_bExitSignal) {
+        break;
+      }
 
       if (ctx.bIsWrite) {
 
@@ -985,9 +557,11 @@ main (int argc, char **argv) {
           printf ("Written %d references.\n", ctx.iCount);
         }
         else {
-          ctx.iErrorCount++;
-          fprintf (stderr, "Write %s failed: %s\n",
-                   sFunctionToStr (ctx.eFunction), modbus_strerror (errno));
+          if (!g_bExitSignal) {
+            ctx.iErrorCount++;
+            fprintf (stderr, "Write %s failed: %s\n",
+                     sFunctionToStr (ctx.eFunction), modbus_strerror (errno));
+          }
         }
         // End write --------------------------------------------------------
       }
@@ -996,11 +570,16 @@ main (int argc, char **argv) {
 
         // Read -------------------------------------------------------------
         for (i = 0; i < ctx.iSlaveCount; i++) {
+          if (g_bExitSignal) {
+            break;
+          }
 
-          iRet = modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[i]);
-          if (iRet != 0) {
-            vIoErrorExit ("Setting slave address failed: %s",
-                          modbus_strerror (errno));
+          if (modbus_get_slave (ctx.xBus) != ctx.piSlaveAddr[i]) {
+            iRet = modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[i]);
+            if (iRet != 0) {
+              vIoErrorExit ("Setting slave address failed: %s",
+                            modbus_strerror (errno));
+            }
           }
           ctx.iTxCount++;
 
@@ -1014,49 +593,135 @@ main (int argc, char **argv) {
             putchar ('\n');
           }
 
-          int j;
-          for (j = 0; j < ctx.iStartCount; j++) {
-            // libmodbus utilise les adresses PDU !
-            iStartReg = ctx.piStartRef[j] - ctx.iPduOffset;
+          // Optimized batch reading
+          // Buffer size: Max 2000 bits (2000 bytes) or 125 regs (250 bytes)
+          // Using uint16_t array for alignment (2048 bytes total)
+          uint16_t batch_buffer[1024];
+          void *original_pvData = ctx.pvData;
+          int j = 0;
+
+          while (j < ctx.iStartCount) {
+            if (g_bExitSignal) {
+              break;
+            }
+
+            int k;
+            int start_addr = ctx.piStartRef[j];
+            int unit_size_regs = iNbReg;
+            int max_count;
+            bool is_bits = (ctx.eFunction == eFuncCoil || ctx.eFunction == eFuncDiscreteInput);
+
+            if (is_bits) {
+              max_count = 2000; // Max bits per request
+            }
+            else {
+              max_count = 125; // Max registers per request
+            }
+
+            // Identify contiguous batch
+            // Check for potential overflow before arithmetic
+            if (start_addr > INT_MAX - unit_size_regs) {
+              vSyntaxErrorExit ("Start reference %d too large for batch calculation", start_addr);
+            }
+            int expected_next_addr = start_addr + unit_size_regs;
+            k = j + 1;
+            while (k < ctx.iStartCount) {
+              int next_addr = ctx.piStartRef[k];
+              // Strict contiguity check (no gaps)
+              if (next_addr != expected_next_addr) {
+                break;
+              }
+              // Check for overflow before max count calculation
+              if (next_addr > INT_MAX - unit_size_regs) {
+                break; // Avoid overflow, stop batch here
+              }
+              // Check max count limit
+              if ((next_addr + unit_size_regs - start_addr) > max_count) {
+                break;
+              }
+              // Check for overflow before next iteration
+              if (next_addr > INT_MAX - unit_size_regs) {
+                break;
+              }
+              expected_next_addr = next_addr + unit_size_regs;
+              k++;
+            }
+
+            // Perform batched read
+            // Number of Modbus units (bits or registers) to read
+            // Safe: k >= 1, and we've checked for overflow above
+            int read_qty = ctx.piStartRef[k - 1] + unit_size_regs - start_addr;
+
+            // Validate read_qty is within expected bounds
+            if (read_qty <= 0 || read_qty > max_count) {
+              vIoErrorExit ("Internal error: calculated read quantity %d out of bounds [1, %d]",
+                            read_qty, max_count);
+            }
+            iStartReg = start_addr - ctx.iPduOffset;
 
             switch (ctx.eFunction) {
               case eFuncDiscreteInput:
-                iRet = modbus_read_input_bits (ctx.xBus, iStartReg, iNbReg,
-                                               ctx.pvData);
+                iRet = modbus_read_input_bits (ctx.xBus, iStartReg, read_qty,
+                                               (uint8_t *) batch_buffer);
                 break;
 
               case eFuncCoil:
-                iRet = modbus_read_bits (ctx.xBus, iStartReg, iNbReg,
-                                         ctx.pvData);
+                iRet = modbus_read_bits (ctx.xBus, iStartReg, read_qty,
+                                         (uint8_t *) batch_buffer);
                 break;
 
               case eFuncInputReg:
-                iRet = modbus_read_input_registers (ctx.xBus, iStartReg, iNbReg,
-                                                    ctx.pvData);
+                iRet = modbus_read_input_registers (ctx.xBus, iStartReg, read_qty,
+                                                    batch_buffer);
                 break;
 
               case eFuncHoldingReg:
-                iRet = modbus_read_registers (ctx.xBus, iStartReg, iNbReg,
-                                              ctx.pvData);
+                iRet = modbus_read_registers (ctx.xBus, iStartReg, read_qty,
+                                              batch_buffer);
                 break;
 
-              default: // Impossible, value has been verified, prevents gcc warning
+              default:
+                iRet = -1;
                 break;
-
             }
-            if (iRet == iNbReg) {
 
+            if (iRet == read_qty) {
               ctx.iRxCount++;
-              vPrintReadValues (ctx.piStartRef[j], ctx.iCount, &ctx);
+              // Iterate and print individual values
+              int m;
+              for (m = j; m < k; m++) {
+                int offset_units = ctx.piStartRef[m] - start_addr;
+                // Validate offset is within buffer bounds
+                if (offset_units < 0 || offset_units >= read_qty) {
+                  vIoErrorExit ("Internal error: batch offset %d out of bounds [0, %d)",
+                                offset_units, read_qty);
+                }
+                if (is_bits) {
+                  ctx.pvData = ((uint8_t *) batch_buffer) + offset_units;
+                }
+                else {
+                  ctx.pvData = batch_buffer + offset_units;
+                }
+                vPrintReadValues (ctx.piStartRef[m], ctx.iCount, &ctx);
+              }
             }
             else {
-              ctx.iErrorCount++;
-              fprintf (stderr, "Read %s failed: %s\n",
-                       sFunctionToStr (ctx.eFunction),
-                       modbus_strerror (errno));
+              // On failure, we report error.
+              // Note: This fails the whole batch.
+              // We could fallback to single reads, but for now we report error.
+              if (!g_bExitSignal) {
+                ctx.iErrorCount++;
+                fprintf (stderr, "Read %s failed: %s\n",
+                         sFunctionToStr (ctx.eFunction),
+                         modbus_strerror (errno));
+              }
             }
+            // Advance
+            j = k;
           }
-          if (ctx.bIsPolling) {
+          ctx.pvData = original_pvData;
+
+          if (ctx.bIsPolling && !g_bExitSignal) {
 
             mb_delay (ctx.iPollRate);
           }
@@ -1064,11 +729,11 @@ main (int argc, char **argv) {
         // End read ---------------------------------------------------------
       }
     }
-    while (ctx.bIsPolling);
+    while (ctx.bIsPolling && !g_bExitSignal);
   }
 
-  vSigIntHandler (SIGTERM);
-  return 0;
+  vCleanup ();
+  return (ctx.iErrorCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 
@@ -1126,12 +791,12 @@ vPrintReadValues (int iAddr, int iCount, xMbPollContext * ctx) {
         break;
 
       case eFormatInt:
-        printf ("%d", lSwapLong (DINT32 (ctx->pvData, i)));
+        printf ("%d", lSwapLong (DINT32 (ctx->pvData, i), ctx->bIsBigEndian));
         iAddr += 2;
         break;
 
       case eFormatFloat:
-        printf ("%g", fSwapFloat (DFLOAT (ctx->pvData, i)));
+        printf ("%g", fSwapFloat (DFLOAT (ctx->pvData, i), ctx->bIsBigEndian));
         iAddr += 2;
         break;
 
@@ -1307,6 +972,7 @@ vPrintConfig (const xMbPollContext * ctx) {
 
 // -----------------------------------------------------------------------------
 // Memory allocation for data to write or read
+// Includes overflow protection for size calculations
 void
 vAllocate (xMbPollContext * ctx) {
 
@@ -1321,11 +987,17 @@ vAllocate (xMbPollContext * ctx) {
     case eFuncInputReg:
     case eFuncHoldingReg:
       if ( (ctx->eFormat == eFormatInt) || (ctx->eFormat == eFormatFloat)) {
-        // 32-bit registers
+        // 32-bit registers: check for overflow before multiplication
+        if (ulDataSize > SIZE_MAX / 4) {
+          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=4)", ulDataSize);
+        }
         ulDataSize *= 4;
       }
       else {
-        // 16-bit registers
+        // 16-bit registers: check for overflow before multiplication
+        if (ulDataSize > SIZE_MAX / 2) {
+          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=2)", ulDataSize);
+        }
         ulDataSize *= 2;
       }
       break;
@@ -1341,7 +1013,7 @@ vAllocate (xMbPollContext * ctx) {
 
 // -----------------------------------------------------------------------------
 void
-vSigIntHandler (int sig) {
+vCleanup (void) {
 
   if ( (ctx.bIsPolling) && (!ctx.bIsWrite)) {
 
@@ -1358,22 +1030,26 @@ vSigIntHandler (int sig) {
   free (ctx.pvData);
   free (ctx.piSlaveAddr);
   free (ctx.piStartRef);
-  modbus_close (ctx.xBus);
-  modbus_free (ctx.xBus);
-#ifdef USE_CHIPIO
-// -----------------------------------------------------------------------------
-  vChipIoSerialDelete (xChipSerial);
-  iChipIoClose (xChip);
-// -----------------------------------------------------------------------------
-#endif /* USE_CHIPIO defined */
-  if (sig == SIGINT) {
+  // NULL check for modbus context - modbus_close/free don't handle NULL
+  if (ctx.xBus != NULL) {
+    modbus_close (ctx.xBus);
+    modbus_free (ctx.xBus);
+  }
+  vChipIoClose(&ctx);
+
+  if (g_bExitSignal == SIGINT) {
     printf ("\neverything was closed.\nHave a nice day !\n");
   }
   else {
     putchar ('\n');
   }
   fflush (stdout);
-  exit (ctx.iErrorCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+// -----------------------------------------------------------------------------
+void
+vSigIntHandler (int sig) {
+  g_bExitSignal = sig;
 }
 
 // -----------------------------------------------------------------------------
@@ -1658,157 +1334,25 @@ sFunctionToStr (eFunctions eFunction) {
 }
 
 // -----------------------------------------------------------------------------
-void
-vPrintIntList (int * iList, int iLen) {
-  int i;
-  putchar ('[');
-  for (i = 0; i < iLen; i++) {
-    printf ("%d", iList[i]);
-    if (i != (iLen - 1)) {
-      putchar (',');
-    }
-    else {
-      putchar (']');
-    }
-  }
-}
-
-// -----------------------------------------------------------------------------
-int *
-iGetIntList (const char * name, const char * sList, int * iLen) {
-  // 12,3,5:9,45
-
-  int * iList = NULL;
-  int i, iFirst = 0, iCount = 0;
-  bool bIsLast = false;
-  const char * p = sList;
-  char * endptr;
-
-  PDEBUG ("iGetIntList(%s)\n", sList);
-
-  // Count and verify the integer list
-  while (*p) {
-
-    i = strtol (p, &endptr, 0);
-    if (endptr == p) {
-
-      vSyntaxErrorExit ("Illegal %s value: %s", name, p);
-    }
-    p = endptr;
-    PDEBUG ("Integer found: %d\n", i);
-
-    if (*p == ':') {
-
-      // i is the first of a range first:last
-      if (bIsLast) {
-        // Cannot have 2 ':' in a row!
-        vSyntaxErrorExit ("Illegal %s delimiter: '%c'", name, *p);
-      }
-      PDEBUG ("Is First\n");
-      iFirst = i;
-      bIsLast = true;
-    }
-    else if ( (*p == ',') || (*p == 0)) {
-
-      if (bIsLast) {
-        int iRange, iLast;
-
-        // i is the last of a range first:last
-        iLast = MAX (iFirst, i);
-        iFirst = MIN (iFirst, i);
-        iRange = iLast - iFirst + 1;
-        PDEBUG ("Is Last, add %d items\n", iRange);
-        iCount += iRange;
-        bIsLast = false;
-      }
-      else {
-
-        iCount++;
-      }
-    }
-    else {
-
-      vSyntaxErrorExit ("Illegal %s delimiter: '%c'", name, *p);
-    }
-
-    if (*p) {
-
-      p++; // Skip the delimiter
-    }
-    PDEBUG ("iCount=%d\n", iCount);
-  }
-
-  if (iCount > 0) {
-    int iIndex = 0;
-
-    // Allocation
-    iList = calloc (iCount, sizeof (int));
-    if (iList == NULL) {
-      vIoErrorExit ("Memory allocation failed for %s list", name);
-    }
-
-    // Assignment
-    p = sList;
-    while (*p) {
-
-      i = strtol (p, &endptr, 0);
-      p = endptr;
-
-      if (*p == ':') {
-
-        // i is the first of a range first:last
-        iFirst = i;
-        bIsLast = true;
-      }
-      else if ( (*p == ',') || (*p == 0)) {
-
-        if (bIsLast) {
-
-          // i is the last of a range first:last
-          int iLast = MAX (iFirst, i);
-          iFirst = MIN (iFirst, i);
-
-          for (i = iFirst; i <= iLast; i++) {
-
-            iList[iIndex++] = i;
-          }
-          bIsLast = false;
-        }
-        else {
-
-          iList[iIndex++] = i;
-        }
-      }
-
-      if (*p) {
-
-        p++; // Skip the delimiter
-      }
-    }
-#ifdef DEBUG
-    if (ctx.bIsVerbose) {
-      vPrintIntList (iList, iCount);
-      putchar ('\n');
-    }
-#endif
-  }
-  *iLen = iCount;
-  return iList;
-}
-
 // -----------------------------------------------------------------------------
 int
 iGetInt (const char * name, const char * num, int base) {
   char * endptr;
 
-  int i = strtol (num, &endptr, base);
-  if (endptr == num) {
+  errno = 0;
+  long lval = strtol (num, &endptr, base);
 
+  if (endptr == num) {
     vSyntaxErrorExit ("Illegal %s value: %s", name, num);
   }
 
-  PDEBUG ("Set %s=%d\n", name, i);
-  return i;
+  // Check for strtol overflow/underflow
+  if (errno == ERANGE || lval > INT_MAX || lval < INT_MIN) {
+    vSyntaxErrorExit ("%s value out of range: %s", name, num);
+  }
+
+  PDEBUG ("Set %s=%d\n", name, (int)lval);
+  return (int)lval;
 }
 
 // -----------------------------------------------------------------------------
@@ -1816,10 +1360,16 @@ double
 dGetDouble (const char * name, const char * num) {
   char * endptr;
 
+  errno = 0;
   double d = strtod (num, &endptr);
-  if (endptr == num) {
 
+  if (endptr == num) {
     vSyntaxErrorExit ("Illegal %s value: %s", name, num);
+  }
+
+  // Check for strtod overflow/underflow
+  if (errno == ERANGE || !isfinite(d)) {
+    vSyntaxErrorExit ("%s value out of range: %s", name, num);
   }
 
   PDEBUG ("Set %s=%g\n", name, d);
@@ -1827,55 +1377,391 @@ dGetDouble (const char * name, const char * num) {
 }
 
 // -----------------------------------------------------------------------------
-float
-fSwapFloat (float f) {
-  float ret = f;
-
-  if (ctx.bIsBigEndian) {
-
-    uint16_t *in = (uint16_t *) &f;
-    uint16_t *out = (uint16_t *) &ret;
-    out[0] = in[1];
-    out[1] = in[0];
-  }
-  return ret;
-}
-
-// -----------------------------------------------------------------------------
-int32_t
-lSwapLong (int32_t l) {
-  int32_t ret = l;
-
-  if (ctx.bIsBigEndian) {
-
-    uint16_t *in = (uint16_t *) &l;
-    uint16_t *out = (uint16_t *) &ret;
-    out[0] = in[1];
-    out[1] = in[0];
-  }
-  return ret;
-}
-
-// -----------------------------------------------------------------------------
-void
+static void
 mb_delay (unsigned long d) {
 
   if (d) {
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
-    if (d == -1) {
+    struct timespec dt;
 
-      sleep (-1);
-    }
-    else {
-      struct timespec dt;
-
-      dt.tv_nsec = (d % 1000UL) * 1000000UL;
-      dt.tv_sec  = d / 1000UL;
-      nanosleep (&dt, NULL);
-    }
+    dt.tv_nsec = (d % 1000UL) * 1000000UL;
+    dt.tv_sec  = d / 1000UL;
+    nanosleep (&dt, NULL);
 #else
     Sleep (d);
 #endif
   }
 }
 /* ========================================================================== */
+
+/* -------------------------------------------------------------------------- */
+static void
+parse_args (int argc, char **argv) {
+  int iNextOption;
+  char * p;
+  int i;
+
+  progname = argv[0];
+
+  do  {
+
+    iNextOption = getopt (argc, argv, short_options);
+    opterr = 0;
+    switch (iNextOption) {
+
+      case 'v':
+        ctx.bIsVerbose = true;
+        PDEBUG ("debug enabled\n");
+        break;
+
+      case 'm':
+        ctx.eMode = iGetEnum (sModeStr, optarg, sModeList,
+                              iModeList, SIZEOF_ILIST (iModeList));
+        ctx.bIsDefaultMode = false;
+        break;
+
+      case 'a':
+        ctx.piSlaveAddr = iGetIntList (sSlaveAddrStr, optarg, &ctx.iSlaveCount);
+        // Verification depends on mode
+        break;
+
+      case 'r':
+        ctx.piStartRef = iGetIntList (sStartRefStr, optarg, &ctx.iStartCount);
+        break;
+
+      case 'c':
+        ctx.iCount = iGetInt (sNumOfValuesStr, optarg, 0);
+        vCheckIntRange (sNumOfValuesStr, ctx.iCount,
+                        NUMOFVALUES_MIN, NUMOFVALUES_MAX);
+        ctx.bIsWrite = false;
+        break;
+
+      case 't':
+        ctx.eFunction = iGetInt (sFunctionStr, optarg, 0);
+        vCheckEnum (sFunctionStr, ctx.eFunction,
+                    iFunctionList, SIZEOF_ILIST (iFunctionList));
+        p = index (optarg, ':');
+        if (p) {
+          ctx.eFormat = iGetEnum (sFormatStr, p + 1, sFormatList, iFormatList,
+                                  SIZEOF_ILIST (iFormatList));
+        }
+        break;
+
+      case 'u':
+        ctx.bIsReportSlaveID = true;
+        break;
+
+      case '1':
+        ctx.bIsPolling = false;
+        break;
+
+      case 'B':
+        ctx.bIsBigEndian = true;
+        break;
+
+      case 'R':
+        ctx.iRtuMode = MODBUS_RTU_RTS_DOWN;
+#ifdef MBPOLL_GPIO_RTS
+        if (optarg) {
+          ctx.iRtsPin = iGetInt (sRtsPinStr, optarg, 10);
+        }
+#endif
+        break;
+
+      case 'F':
+        ctx.iRtuMode = MODBUS_RTU_RTS_UP;
+#ifdef MBPOLL_GPIO_RTS
+        if (optarg) {
+          ctx.iRtsPin = iGetInt (sRtsPinStr, optarg, 10);
+        }
+#endif
+        break;
+
+      case '0':
+        ctx.iPduOffset = 0;
+        break;
+
+      case 'W':
+        ctx.bWriteSingleAsMany = true;
+        break;
+
+      case 'l':
+        ctx.iPollRate = iGetInt (sPollRateStr, optarg, 0);
+        if (ctx.iPollRate < POLLRATE_MIN) {
+
+          vSyntaxErrorExit ("Illegal %s: %d", sPollRateStr, ctx.iPollRate);
+        }
+        break;
+
+      case 'o':
+        ctx.dTimeout = dGetDouble (sTimeoutStr, optarg);
+        vCheckDoubleRange (sTimeoutStr, ctx.dTimeout, TIMEOUT_MIN, TIMEOUT_MAX);
+        break;
+
+      case 'q':
+        ctx.bIsQuiet = true;
+        break;
+
+      case 'x':
+        ctx.bPrintHex = true;
+        break;
+
+      case 'Q':
+        ctx.bEnableMaxSlaveQuirk = true;
+        break;
+
+      case 'X':
+        ctx.bEnableReplyToBroadcastQuirk = true;
+        break;
+
+        // TCP -----------------------------------------------------------------
+      case 'p':
+        ctx.sTcpPort = optarg;
+        break;
+
+        // RTU -----------------------------------------------------------------
+      case 'b':
+        ctx.xRtu.baud = iGetInt (sRtuBaudrateStr, optarg, 0);
+        vCheckIntRange (sRtuBaudrateStr, ctx.xRtu.baud, RTU_BAUDRATE_MIN,
+                        RTU_BAUDRATE_MAX);
+        break;
+      case 'd':
+        ctx.xRtu.dbits = iGetEnum (sRtuDatabitsStr, optarg, sDatabitsList,
+                                   iDatabitsList, SIZEOF_ILIST (iDatabitsList));
+        break;
+      case 's':
+        ctx.xRtu.sbits = iGetEnum (sRtuStopbitsStr, optarg, sStopbitsList,
+                                   iStopbitsList, SIZEOF_ILIST (iStopbitsList));
+        break;
+      case 'P':
+        ctx.xRtu.parity = iGetEnum (sRtuParityStr, optarg, sParityList,
+                                    iParityList, SIZEOF_ILIST (iParityList));
+        break;
+
+#ifdef USE_CHIPIO
+// -----------------------------------------------------------------------------
+        // ChipIo --------------------------------------------------------------
+      case 'i':
+        iChipIoSlaveAddr = iGetInt (sChipIoSlaveAddrStr, optarg, 0);
+        vCheckIntRange (sChipIoSlaveAddrStr, iChipIoSlaveAddr,
+                        CHIPIO_SLAVEADDR_MIN, CHIPIO_SLAVEADDR_MAX);
+        ctx.bIsChipIo = true;
+        break;
+
+      case 'n':
+        iChipIoIrqPin = iGetInt (sChipIoIrqPinStr, optarg, 0);
+        ctx.bIsChipIo = true;
+        break;
+// -----------------------------------------------------------------------------
+#endif /* USE_CHIPIO defined */
+
+        // Misc. ---------------------------------------------------------------
+      case 'h':
+        vUsage (stdout, EXIT_SUCCESS);
+        break;
+
+      case 'V':
+        vVersion();
+        break;
+
+      case 'w':
+        vWarranty();
+        break;
+
+      case '?': /* An invalid option has been used */
+        vSyntaxErrorExit ("Unrecognized option or missing option parameter");
+        break;
+    }
+  }
+  while (iNextOption != -1);
+
+  if (ctx.iStartCount == -1) {
+    ctx.piStartRef = malloc (sizeof (int));
+    if (ctx.piStartRef == NULL) {
+      vIoErrorExit ("Memory allocation failed for start reference");
+    }
+    ctx.piStartRef[0] = DEFAULT_STARTREF;
+    ctx.iStartCount = 1;
+  }
+
+  if (ctx.iPduOffset) {
+    for (i = 0; i < ctx.iStartCount; i++) {
+      vCheckIntRange (sStartRefStr, ctx.piStartRef[i],
+                      STARTREF_MIN, STARTREF_MAX);
+    }
+  }
+  else {
+    for (i = 0; i < ctx.iStartCount; i++) {
+      vCheckIntRange (sStartRefStr, ctx.piStartRef[i],
+                      STARTREF_MIN - 1, STARTREF_MAX - 1);
+    }
+  }
+
+  // ignore iCount > 1 if start ref list contains more then one value
+  if ((ctx.iStartCount > 1) && (ctx.iCount > 1)) {
+    ctx.iCount = 1;
+  }
+
+  // Coils and Discrete inputs are always binary
+  if ( (ctx.eFunction == eFuncCoil) || (ctx.eFunction == eFuncDiscreteInput)) {
+
+    ctx.eFormat = eFormatBin;
+  }
+
+  // Read serial port or host
+  if (optind == argc) {
+
+    vSyntaxErrorExit ("device or host parameter missing");
+  }
+  ctx.sDevice = argv[optind];
+
+  if ( (strcasestr (ctx.sDevice, "com") || strcasestr (ctx.sDevice, "tty") ||
+        strcasestr (ctx.sDevice, "ser")) && ctx.bIsDefaultMode) {
+
+    // Default mode for serial port
+    ctx.eMode = eModeRtu;
+    PDEBUG ("Set mode to RTU for serial port\n");
+  }
+#ifdef USE_CHIPIO
+// -----------------------------------------------------------------------------
+  else if ( (strcasestr (ctx.sDevice, "i2c") && ctx.bIsDefaultMode) ||
+            ctx.bIsChipIo) {
+
+    // Ouverture de la liaison i2c vers le chipio
+    xChip = xChipIoOpen (ctx.sDevice, iChipIoSlaveAddr);
+    if (xChip) {
+      xDin xChipIrqPin = { .num = iChipIoIrqPin, .act = true,
+                           .pull = ePullOff
+                         };
+      // Create virtual serial port
+      xChipSerial = xChipIoSerialNew (xChip, &xChipIrqPin);
+      if (xChipSerial) {
+
+        // The virtual serial port will be used by libmodbus as a normal port
+        ctx.sDevice = sChipIoSerialPortName (xChipSerial);
+        if (iChipIoSerialSetAttr (xChipSerial, &ctx.xRtu) != 0) {
+
+          vIoErrorExit ("Unable to set-up serial chipio port");
+        }
+      }
+      else {
+
+        vIoErrorExit ("serial chipio port failure");
+      }
+    }
+    else {
+
+      vIoErrorExit ("chipio not found");
+    }
+
+    ctx.eMode = eModeRtu;
+    ctx.bIsChipIo = true;
+    PDEBUG ("Set mode to RTU for chipio serial port\n");
+  }
+// -----------------------------------------------------------------------------
+#endif /* USE_CHIPIO defined */
+  PDEBUG ("Set device=%s\n", ctx.sDevice);
+
+  if ( (ctx.bIsReportSlaveID) && (ctx.eMode != eModeRtu)) {
+
+    vSyntaxErrorExit ("-u is available only in RTU mode");
+  }
+
+  if (! ctx.bIsReportSlaveID) {
+
+    // Calculate number of data to write
+    int iNbToWrite = MAX (0, argc - optind - 1);
+    if (iNbToWrite) {
+      if (!ctx.bIsWrite) {
+
+        // -c option provided for reading with data to write!
+        vSyntaxErrorExit ("-c parameter must not be specified for writing");
+      }
+      ctx.bIsPolling = false;
+      ctx.iCount = iNbToWrite;
+      PDEBUG ("%d write data have been found\n", iNbToWrite);
+    }
+    else {
+      ctx.bIsWrite = false;
+    }
+
+    // Allocate necessary memory
+    vAllocate (&ctx);
+
+    // Retrieve data to write from command line
+    if (iNbToWrite) {
+      int iValue, i = 0, arg;
+      double dValue;
+
+      for (arg = optind + 1; arg < argc; arg++, i++) {
+
+        switch (ctx.eFunction) {
+
+          case eFuncDiscreteInput:
+          case eFuncInputReg:
+            vSyntaxErrorExit ("Unable to write read-only element");
+            break;
+
+          case eFuncCoil:
+            // 1 octets contient 8 coils
+            iValue = iGetInt (sDataStr, argv[arg], 10);
+            vCheckIntRange (sDataStr, iValue, 0, 1);
+            DUINT8 (ctx.pvData, i) = (uint8_t) iValue;
+            PDEBUG ("Byte[%d]=%d\n", i, DUINT8 (ctx.pvData, i));
+            break;
+            break;
+
+          case eFuncHoldingReg:
+            if (ctx.eFormat == eFormatInt) {
+              DINT32 (ctx.pvData, i) = lSwapLong (iGetInt (sDataStr, argv[arg], 10), ctx.bIsBigEndian);
+              PDEBUG ("Int[%d]=%"PRId32"\n", i, lSwapLong (DINT32 (ctx.pvData, i), ctx.bIsBigEndian));
+            }
+            else if (ctx.eFormat == eFormatFloat) {
+              dValue = dGetDouble (sDataStr, argv[arg]);
+              PDEBUG ("%g,%g\n", FLT_MIN, FLT_MAX);
+              vCheckDoubleRange (sDataStr, dValue, -FLT_MAX, FLT_MAX);
+              DFLOAT (ctx.pvData, i) = fSwapFloat ( (float) dValue, ctx.bIsBigEndian);
+              PDEBUG ("Float[%d]=%g\n", i, fSwapFloat (DFLOAT (ctx.pvData, i), ctx.bIsBigEndian));
+            }
+            else if (ctx.eFormat == eFormatString) {
+                vSyntaxErrorExit ("You can use string format only for output");
+            }
+            else if (ctx.eFormat == eFormatInt16) {
+              iValue = iGetInt (sDataStr, argv[arg], 0);
+              vCheckIntRange (sDataStr, iValue, INT16_MIN, INT16_MAX);
+              DUINT16 (ctx.pvData, i) = (uint16_t) iValue;
+              PDEBUG ("Word[%d]=0x%X\n", i, DUINT16 (ctx.pvData, i));
+            }
+            else {
+              iValue = iGetInt (sDataStr, argv[arg], 0);
+              vCheckIntRange (sDataStr, iValue, 0, UINT16_MAX);
+              DUINT16 (ctx.pvData, i) = (uint16_t) iValue;
+              PDEBUG ("Word[%d]=0x%X\n", i, DUINT16 (ctx.pvData, i));
+            }
+            break;
+
+          default: // Impossible, value has been verified, prevents gcc warning
+            break;
+        }
+      }
+    }
+  }
+
+  if ( (ctx.iSlaveCount > 1) && ( (ctx.bIsWrite) || (ctx.bIsReportSlaveID))) {
+    vSyntaxErrorExit ("You can give a slave address list only for reading");
+  }
+
+  if ( (ctx.iStartCount > 1) && (ctx.bIsWrite) ) {
+    vSyntaxErrorExit ("You can give a start ref list only for reading");
+  }
+
+  if (ctx.iSlaveCount == -1) {
+
+    ctx.piSlaveAddr = malloc (sizeof (int));
+    if (ctx.piSlaveAddr == NULL) {
+      vIoErrorExit ("Memory allocation failed for slave address");
+    }
+    ctx.piSlaveAddr[0] = DEFAULT_SLAVEADDR;
+    ctx.iSlaveCount = 1;
+  }
+}

@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(mbpoll
-  VERSION 1.5.2
+  VERSION 1.5.3
   DESCRIPTION "ModBus Master Simulator"
   LANGUAGES C)
 
@@ -34,7 +34,9 @@ if(NOT HAVE_GETOPT)
   set(GETOPT_SOURCES ${CMAKE_SOURCE_DIR}/3rdparty/getopt/getopt.c)
   set(GETOPT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/3rdparty/getopt)
   # Disable pedantic warnings for 3rdparty getopt (uses deprecated 'register' keyword)
-  set_source_files_properties(${GETOPT_SOURCES} PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+  if(NOT MSVC)
+    set_source_files_properties(${GETOPT_SOURCES} PROPERTIES COMPILE_FLAGS "-Wno-pedantic")
+  endif()
 endif()
 
 # Append cmake/ to module path
@@ -88,6 +90,8 @@ set(MBPOLL_SOURCES
   ${CMAKE_SOURCE_DIR}/src/mbpoll.c
   ${CMAKE_SOURCE_DIR}/src/custom-rts.c
   ${CMAKE_SOURCE_DIR}/src/serial.c
+  ${CMAKE_SOURCE_DIR}/src/chipio.c
+  ${CMAKE_SOURCE_DIR}/src/utils.c
   ${LIBMODBUS_SRCS}
   ${GETOPT_SOURCES})
 
@@ -147,6 +151,7 @@ endif()
 
 # Compile definitions
 target_compile_definitions(mbpoll PRIVATE _GNU_SOURCE)
+target_compile_definitions(mbpoll PRIVATE SKIP_FAILURE_EXIT)
 
 if(MBPOLL_GPIO_RTS)
   target_compile_definitions(mbpoll PRIVATE MBPOLL_GPIO_RTS)
@@ -188,6 +193,13 @@ configure_file(
   IMMEDIATE @ONLY)
 add_custom_target(uninstall
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+# Testing support
+option(BUILD_TESTING "Build unit tests" ON)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 # CPack configuration for Debian packages
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})

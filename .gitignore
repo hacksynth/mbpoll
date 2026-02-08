@@ -15,5 +15,4 @@ obj/
 version.*
 build*/
 libmodbus/
-CLAUDE.md
 cmake-build-*/

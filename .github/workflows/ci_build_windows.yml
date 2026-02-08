@@ -30,6 +30,6 @@ jobs:
 
     - name: Check binary
       run: |
-        .\build\bin\mbpoll.exe -V
-        .\build\bin\mbpoll.exe -h
+        .\build\bin\Release\mbpoll.exe -V
+        .\build\bin\Release\mbpoll.exe -h
       continue-on-error: true

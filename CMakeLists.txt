@@ -8,6 +8,9 @@ project(mbpoll
   DESCRIPTION "ModBus Master Simulator"
   LANGUAGES C)
 
+# Standard install directories (man, bin, lib, etc.)
+include(GNUInstallDirs)
+
 # Export compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -189,7 +192,7 @@ install(TARGETS mbpoll
 # Install man page (Unix only)
 if(UNIX)
   install(FILES ${CMAKE_SOURCE_DIR}/doc/mbpoll.1
-    DESTINATION share/man/man1)
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 endif()
 
 # Uninstall target

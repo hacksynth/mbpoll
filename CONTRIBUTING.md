@@ -34,7 +34,7 @@ First off, thank you for considering contributing to mbpoll! 🎉
 
 ### Coding Guidelines
 
-- Follow the existing code style (C99, 4-space indentation).
+- Follow the existing code style (C99, 2-space indentation).
 - Keep commits focused — one logical change per commit.
 - Update documentation if your change affects usage or options.
 

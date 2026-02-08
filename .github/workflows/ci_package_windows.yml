@@ -17,6 +17,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Clone libmodbus
       run: git clone https://github.com/stephane/libmodbus.git
@@ -30,9 +32,9 @@ jobs:
         } elseif ($env:GITHUB_REF -match '^refs/tags/v(.+)$') {
           $v = $Matches[1]
         } else {
-          # Fallback: read from CMakeLists.txt
-          $content = Get-Content CMakeLists.txt -Raw
-          if ($content -match 'VERSION\s+(\d+\.\d+\.\d+)') {
+          # Extract version from git describe (e.g. v1.5.3 -> 1.5.3)
+          $desc = git describe --tags --match 'v*' 2>$null
+          if ($desc -match '^v(\d+\.\d+\.\d+)') {
             $v = $Matches[1]
           } else {
             $v = "0.0.0"

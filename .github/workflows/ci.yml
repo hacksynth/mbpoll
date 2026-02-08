@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake pkg-config libmodbus-dev
+
+    - name: Configure CMake
+      env:
+        BUILD_TYPE: ${{ matrix.build_type }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+
+    - name: Build
+      env:
+        BUILD_TYPE: ${{ matrix.build_type }}
+      run: cmake --build build --config "$BUILD_TYPE"
+
+    - name: Check binary
+      run: |
+        ./build/bin/mbpoll -V
+        ./build/bin/mbpoll -h || true
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: brew install cmake pkg-config libmodbus
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Check binary
+      run: |
+        ./build/bin/mbpoll -V
+        ./build/bin/mbpoll -h || true
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clone libmodbus
+      run: git clone https://github.com/stephane/libmodbus.git
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Check binary
+      run: |
+        .\build\bin\mbpoll.exe -V
+        .\build\bin\mbpoll.exe -h
+      continue-on-error: true

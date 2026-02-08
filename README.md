@@ -1,13 +1,23 @@
 # mbpoll
 
-Copyright © 2015-2025 Pascal JEAN, All rights reserved.
+Copyright © 2015-2026 Pascal JEAN, All rights reserved.
 
+[![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/epsilonrt/mbpoll?include_prereleases)](https://github.com/epsilonrt/mbpoll/releases)
+[![Build Linux](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_linux.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_linux.yml)
+[![Build Windows](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_windows.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_windows.yml)
+[![Build macOS](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_macos.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_build_macos.yml)
+
+---
 
 ## Abstract
 
+<a href="https://modbus.org/">
+  <img src="doc/modbus.png" alt="Modbus Logo" align="right" valign="top">
+</a>
+
 mbpoll is a command line utility to communicate with ModBus slave (RTU or TCP).  
 This is a multiplatform project, the compilation was tested on GNU Linux
-x86, x86_64, armhf and arm64 (Armbian/Raspbian), Microsoft Windows, and Mac OSX.  
+x86, x86_64, armhf and arm64 (Armbian/Raspbian), Microsoft Windows, and macOS.  
 
 Development of major version 1 of mbpoll is complete, **version 2 using libmodbuspp is under development.** Proposals for new features will be transferred to this new branch.
 
@@ -23,35 +33,20 @@ floating single precision.
 
 > **Note:** mbpoll's output syntax and command line option syntax is similar to the original modpoll command line program published by proconX. However mbpoll is a completely independent project and based on different source code than the original modpoll program. mbpoll is distributed under the GPL license, but the original modpoll program is not covered by the GPL license.
 
-
 ## Quickstart guide
 
 The fastest and safest way to install mbpoll is to use the APT 
 repository from [piduino.org](http://apt.piduino.org), so you should do the following :
 
-    wget -O- http://www.piduino.org/piduino-key.asc | sudo apt-key add -
-    sudo add-apt-repository 'deb http://apt.piduino.org stretch piduino'
+    wget -O- http://www.piduino.org/piduino-key.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/piduino-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/piduino-archive-keyring.gpg] http://apt.piduino.org $(lsb_release -c -s) piduino" | sudo tee /etc/apt/sources.list.d/piduino.list
     sudo apt update
     sudo apt install mbpoll
 
 This repository provides `mbpoll` and `libmodbus` (version 3.1.7) packages for
 `i386`, `amd64`, `armhf` and `arm64` architectures.
-In the above commands, the repository is a Debian Stretch distribution, but you 
-can also choose Ubuntu Trusty, Xenial or Bionic by replacing `stretch` with 
-`trusty`, `xenial` or `bionic`.  
-It may be necessary to install the `software-properties-common` 
-package for `add-apt-repository`.
 
-For Raspbian you have to do a little different :
-
-    wget -O- http://www.piduino.org/piduino-key.asc | sudo apt-key add -
-    echo 'deb http://raspbian.piduino.org stretch piduino' | sudo tee /etc/apt/sources.list.d/piduino.list
-    sudo apt update
-    sudo apt install mbpoll
-
-The Raspbian repository provides Piduino packages for `armhf` architecture for Stretch only.
-
-## Installation using Brew on MacOS and Linux
+## Installation using Brew on macOS and Linux
 Using [Homebrew](https://github.com/Homebrew/brew) to install mbpoll and its dependencies using:
 
 `brew install mbpoll`
@@ -105,9 +100,9 @@ For example to query a debian system:
 If you prefer, you can in the place of direct compilation create a package and install it:
 
         $ make package
-        $ sudo dpkg -i * .deb
+        $ sudo dpkg -i *.deb
 
-In some cases, when installing pkg-config for the first time, it may be necessary to set the $PKG_CONFIG_PATH environment variable before running CMAKE, so pkg_check_module it will be able to find the libmodbus at /usr/local/lib/ directory. This can be done by the following command: export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH. Make sure to adjust the path /usr/local/lib/pkgconfig if your pkgconfig is located in a different path.
+In some cases, when installing pkg-config for the first time, it may be necessary to set the `PKG_CONFIG_PATH` environment variable before running cmake, so that `pkg_check_modules` can find libmodbus in `/usr/local/lib/`. This can be done with the following command: `export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH`. Make sure to adjust the path if your pkgconfig directory is located elsewhere.
 
 That's all !
 
@@ -117,8 +112,6 @@ For Windows, you can follow the instructions in the [README-WINDOWS.md](README-W
 
 The following command is used to read the input registers 1 and 2 of the
 slave at address 33 connected through RTU /dev/ttyUSB2 (38400 Bd)
-
----
 
         $ mbpoll -a 33 -b 38400 -t 3 -r 1 -c 2 /dev/ttyUSB2
         
@@ -155,7 +148,8 @@ slave at address 33 connected through RTU /dev/ttyUSB2 (38400 Bd)
 
 ## Help
 
-A complete help is available with the -h option:
+A complete help is available with the -h option.  
+On Unix systems, a man page is also available: `man mbpoll`
 
     usage : mbpoll [ options ] device|host [ writevalues... ] [ options ]
 
@@ -225,18 +219,11 @@ A complete help is available with the -h option:
       -v            Verbose mode.  Causes mbpoll to print debugging messages about
                     its progress.  This is helpful in debugging connection...
 
----
-> Copyright © 2015-2025 Pascal JEAN, All rights reserved.
+## Contributing
 
-> mbpoll is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Pull requests are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting.  
+All contributions must target the `dev` branch — `master` is reserved for stable releases only.
 
-> mbpoll is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+## License
 
-> You should have received a copy of the GNU General Public License
-along with mbpoll. If not, see <http://www.gnu.org/licenses/>.
+mbpoll is free software licensed under the [GNU General Public License v3.0](COPYING).

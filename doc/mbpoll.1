@@ -1,0 +1,316 @@
+.\" mbpoll - ModBus Master Simulator
+.\" Copyright (c) 2015-2026 Pascal JEAN, All rights reserved.
+.\" Licensed under GPL-3.0
+.\"
+.TH MBPOLL 1 "February 2026" "mbpoll" "User Commands"
+.SH NAME
+mbpoll \- ModBus(R) Master Simulator
+.SH SYNOPSIS
+.B mbpoll
+.RI "[ " options " ] " "device" | "host"
+.RI "[ " writevalues... " ]"
+.RI "[ " options " ]"
+.SH DESCRIPTION
+.B mbpoll
+is a command line utility to communicate with ModBus slave devices
+(RTU or TCP). It allows to read and write in ModBus slave registers
+connected by serial (RTU only) or TCP.
+.PP
+.B mbpoll
+can:
+.RS 4
+.IP \(bu 2
+read discrete inputs
+.IP \(bu 2
+read and write binary outputs (coil)
+.IP \(bu 2
+read input registers
+.IP \(bu 2
+read and write output registers (holding register)
+.RE
+.PP
+The reading and writing of registers may be in decimal, hexadecimal or
+floating single precision.
+.PP
+.BR mbpoll 's
+output syntax and command line option syntax is similar to the original
+.B modpoll
+command line program published by proconX. However
+.B mbpoll
+is a completely independent project and based on different source code
+than the original
+.B modpoll
+program.
+.B mbpoll
+is distributed under the GPL license, but the original
+.B modpoll
+program is not covered by the GPL license.
+.SH ARGUMENTS
+.TP
+.I device
+Serial port when using ModBus RTU protocol.
+.RS
+.IP \(bu 2
+.B COM1, COM2, ...
+on Windows
+.IP \(bu 2
+.B /dev/ttyS0, /dev/ttyS1, ...
+on Linux
+.IP \(bu 2
+.B /dev/ser1, /dev/ser2, ...
+on QNX
+.RE
+.TP
+.I host
+Host name or dotted IP address when using ModBus/TCP protocol.
+.TP
+.I writevalues
+List of values to be written. If none specified (default),
+.B mbpoll
+reads data. If negative numbers are provided, precede the list of
+data to be written by two dashes
+.RB ( \-\- ).
+For example:
+.RS
+.PP
+.B mbpoll \-t4:int /dev/ttyUSB0 \-\- 123 \-1568 8974 \-12
+.RE
+.SH GENERAL OPTIONS
+.TP
+.BI \-m " mode"
+Communication mode:
+.B rtu
+or
+.BR tcp .
+Default is
+.BR tcp .
+.TP
+.BI \-a " address"
+Slave address. Range: 1\-255 for RTU, 0\-255 for TCP. Default is 1.
+For reading, it is possible to give an address list separated by commas or
+colons. For example:
+.RS
+.PP
+.B \-a 32,33,34,36:40
+reads slaves [32,33,34,36,37,38,39,40].
+.RE
+.TP
+.BI \-r " reference"
+Start reference. Default is 1.
+For reading, it is possible to give a reference list separated by commas
+or colons.
+.TP
+.BI \-c " count"
+Number of values to read (1\-125). Default is 1.
+.TP
+.B \-u
+Read the description of the type, the current status, and other
+information specific to a remote device (Report Slave ID). RTU only.
+.TP
+.BI \-t " type"
+Data type. The following types are supported:
+.RS
+.TP
+.B 0
+Discrete output (coil) data type (binary 0 or 1).
+.TP
+.B 1
+Discrete input data type (binary 0 or 1).
+.TP
+.B 3
+16\-bit input register data type.
+.TP
+.B 3:int16
+16\-bit input register with signed integer display.
+.TP
+.B 3:hex
+16\-bit input register with hexadecimal display.
+.TP
+.B 3:string
+16\-bit input register with string (char) display.
+.TP
+.B 3:int
+32\-bit integer data type in input register table.
+.TP
+.B 3:float
+32\-bit float data type in input register table.
+.TP
+.B 4
+16\-bit output (holding) register data type (default).
+.TP
+.B 4:int16
+16\-bit output (holding) register with signed integer display.
+.TP
+.B 4:hex
+16\-bit output (holding) register with hexadecimal display.
+.TP
+.B 4:string
+16\-bit output (holding) register with string (char) display.
+.TP
+.B 4:int
+32\-bit integer data type in output (holding) register table.
+.TP
+.B 4:float
+32\-bit float data type in output (holding) register table.
+.RE
+.TP
+.B \-0
+First reference is 0 (PDU addressing) instead of 1.
+.TP
+.B \-W
+Use function code 0x10 (Write Multiple Registers) for writing a single register,
+instead of 0x06 (Write Single Register).
+.TP
+.B \-B
+Big endian word order for 32\-bit integer and float.
+.TP
+.B \-1
+Poll only once, otherwise poll at every poll rate interval.
+.TP
+.BI \-l " rate"
+Poll rate in milliseconds. Must be greater than 100. Default is 1000.
+.TP
+.BI \-o " timeout"
+Response time\-out in seconds (0.01 \- 10.00). Default is 1.00 s.
+.TP
+.B \-q
+Quiet mode. Minimum output only.
+.TP
+.B \-x
+Print addresses (references) in hexadecimal format.
+.TP
+.B \-Q
+Enable MAX_SLAVE quirk (accept slave id 0\-255).
+.TP
+.B \-X
+Enable REPLY_TO_BROADCAST quirk (send reply to broadcast).
+.SH MODBUS/TCP OPTIONS
+.TP
+.BI \-p " port"
+TCP port number. Default is 502.
+.SH MODBUS RTU OPTIONS
+.TP
+.BI \-b " baudrate"
+Baud rate (1200\-921600). Default is 19200.
+.TP
+.BI \-d " databits"
+Data bits: 7 or 8. Default is 8 for RTU.
+.TP
+.BI \-s " stopbits"
+Stop bits: 1 or 2. Default is 1.
+.TP
+.BI \-P " parity"
+Parity:
+.BR none ,
+.BR even ,
+or
+.BR odd .
+Default is
+.BR even .
+.TP
+.BR \-R " [" \fIpin\fP "]"
+RS\-485 mode. /RTS is on (active low) after sending.
+An optional parameter specifies the GPIO pin number for RTS
+(only available when compiled with GPIO RTS support).
+.TP
+.BR \-F " [" \fIpin\fP "]"
+RS\-485 mode. /RTS is on (active low) when sending.
+An optional parameter specifies the GPIO pin number for RTS
+(only available when compiled with GPIO RTS support).
+.SH OTHER OPTIONS
+.TP
+.B \-h
+Print help summary and exit.
+.TP
+.B \-V
+Print version and exit.
+.TP
+.B \-v
+Verbose mode. Causes
+.B mbpoll
+to print debugging messages about its progress.
+This is helpful in debugging connection problems.
+.TP
+.B \-w
+Print warranty information and exit.
+.SH EXAMPLES
+Read input registers 1 and 2 from slave 33 via RTU on /dev/ttyUSB2 at 38400 baud:
+.PP
+.RS
+.B mbpoll \-a 33 \-b 38400 \-t 3 \-r 1 \-c 2 /dev/ttyUSB2
+.RE
+.PP
+Read holding registers 100 to 109 from slave 1 via TCP on host 192.168.1.10:
+.PP
+.RS
+.B mbpoll \-t 4 \-r 100 \-c 10 192.168.1.10
+.RE
+.PP
+Write value 1234 to holding register 100 of slave 1 via TCP:
+.PP
+.RS
+.B mbpoll \-t 4 \-r 100 192.168.1.10 1234
+.RE
+.PP
+Write 32\-bit integer values (including negative) to holding registers via RTU:
+.PP
+.RS
+.B mbpoll \-t 4:int /dev/ttyUSB0 \-\- 123 \-1568 8974 \-12
+.RE
+.PP
+Read coils 1 to 8 from slave 5, poll only once:
+.PP
+.RS
+.B mbpoll \-a 5 \-t 0 \-r 1 \-c 8 \-1 /dev/ttyUSB0
+.RE
+.PP
+Read multiple slaves at once:
+.PP
+.RS
+.B mbpoll \-a 1,2,3 \-t 4 \-r 1 \-c 5 /dev/ttyUSB0
+.RE
+.PP
+Read a range of non-contiguous registers:
+.PP
+.RS
+.B mbpoll \-r 1,5,10:15 \-t 4 192.168.1.10
+.RE
+.PP
+Report slave ID of device at address 1:
+.PP
+.RS
+.B mbpoll \-a 1 \-u \-m rtu /dev/ttyUSB0
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Success. All frames were received without errors.
+.TP
+.B 1
+Failure. One or more communication errors occurred.
+.SH DEPENDENCIES
+.B mbpoll
+requires
+.BR libmodbus (3)
+version 3.1.7 or later.
+.SH BUGS
+Report bugs at
+.UR https://github.com/epsilonrt/mbpoll/issues
+.UE .
+.SH AUTHOR
+Pascal JEAN
+.UR https://github.com/epsilonrt/mbpoll
+.UE
+.SH COPYRIGHT
+Copyright \(co 2015\-2026 Pascal JEAN.
+.PP
+License GPLv3+: GNU GPL version 3 or later
+.UR https://www.gnu.org/licenses/gpl.html
+.UE .
+.br
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+.SH SEE ALSO
+.BR modbus_new_rtu (3),
+.BR modbus_new_tcp_pi (3),
+.BR libmodbus (7)

@@ -1,0 +1,107 @@
+name: Build macOS Package
+
+on:
+  push:
+    branches: [ master, main, dev ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-pkg:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: brew install cmake pkg-config libmodbus
+
+    - name: Determine version
+      id: version
+      run: |
+        if [[ "$GITHUB_REF" =~ ^refs/tags/v(.+)$ ]]; then
+          VERSION="${BASH_REMATCH[1]}"
+        else
+          # Extract version from git describe (e.g. v1.5.3 -> 1.5.3, v1.5.3-2-gabcdef -> 1.5.3)
+          GIT_DESC=$(git describe --tags --match 'v*' 2>/dev/null || echo "v0.0.0")
+          VERSION=$(echo "$GIT_DESC" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run tests
+      run: ctest --test-dir build --build-config Release --output-on-failure
+
+    - name: Check binary
+      run: |
+        ./build/bin/mbpoll -V
+        ./build/bin/mbpoll -h || true
+
+    - name: Create macOS package
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        ARCH=$(uname -m)
+        PKG_ROOT=$(mktemp -d)
+
+        # Install into staging directory
+        DESTDIR="$PKG_ROOT" cmake --install build
+
+        # Build .pkg installer
+        pkgbuild \
+          --root "$PKG_ROOT" \
+          --identifier "fr.epsilonrt.mbpoll" \
+          --version "$VERSION" \
+          --install-location "/" \
+          "build/mbpoll_${VERSION}_${ARCH}.pkg"
+
+        echo "PKG_NAME=mbpoll_${VERSION}_macos_${ARCH}" >> $GITHUB_ENV
+
+    - name: Create tarball
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        ARCH=$(uname -m)
+        STAGING=$(mktemp -d)
+        DESTDIR="$STAGING" cmake --install build
+        tar -czf "build/mbpoll_${VERSION}_macos_${ARCH}.tar.gz" -C "$STAGING" .
+
+    - name: Upload macOS package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PKG_NAME }}
+        path: |
+          build/*.pkg
+          build/*.tar.gz
+
+    - name: Check tag is on master or main
+      if: startsWith(github.ref, 'refs/tags/v')
+      id: check_branch
+      run: |
+        BRANCHES=$(git branch -r --contains $GITHUB_SHA)
+        if echo "$BRANCHES" | grep -qE 'origin/master|origin/main'; then
+          echo "ON_MAIN=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag is not on master/main, skipping release"
+          echo "ON_MAIN=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/v') && steps.check_branch.outputs.ON_MAIN == 'true'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          build/*.pkg
+          build/*.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: false

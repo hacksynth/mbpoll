@@ -1,0 +1,35 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ master, main, dev, 'release-*' ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ master, main, dev ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Clone libmodbus
+      run: git clone https://github.com/stephane/libmodbus.git
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run tests
+      run: ctest --test-dir build --build-config Release --output-on-failure
+
+    - name: Check binary
+      run: |
+        .\build\bin\Release\mbpoll.exe -V
+        .\build\bin\Release\mbpoll.exe -h
+      continue-on-error: true

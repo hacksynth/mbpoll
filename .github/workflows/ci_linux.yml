@@ -1,0 +1,45 @@
+name: CI Linux
+
+on:
+  push:
+    branches: [ master, main, dev, 'release-*' ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ master, main, dev ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake pkg-config libmodbus-dev
+
+    - name: Configure CMake
+      env:
+        BUILD_TYPE: ${{ matrix.build_type }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+
+    - name: Build
+      env:
+        BUILD_TYPE: ${{ matrix.build_type }}
+      run: cmake --build build --config "$BUILD_TYPE"
+
+    - name: Run tests
+      env:
+        BUILD_TYPE: ${{ matrix.build_type }}
+      run: ctest --test-dir build --build-config "$BUILD_TYPE" --output-on-failure
+
+    - name: Check binary
+      run: |
+        ./build/bin/mbpoll -V
+        ./build/bin/mbpoll -h || true

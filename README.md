@@ -3,7 +3,21 @@
 Copyright © 2015-2025 Pascal JEAN, All rights reserved.
 
 
+[![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/epsilonrt/mbpoll?include_prereleases)](https://github.com/epsilonrt/mbpoll/releases)  
+
+[![Linux Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml)
+[![Windows Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml)
+[![MacOS Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml)
+
+---
+
 ## Abstract
+
+<a href="https://modbus.org/">
+  <img src="https://github.com/epsilonrt/modbus-arduino/raw/master/extras/modbus.png" alt="Modbus Logo" align="right" valign="top">
+</a>
+
+
 
 mbpoll is a command line utility to communicate with ModBus slave (RTU or TCP).  
 This is a multiplatform project, the compilation was tested on GNU Linux
@@ -29,27 +43,13 @@ floating single precision.
 The fastest and safest way to install mbpoll is to use the APT 
 repository from [piduino.org](http://apt.piduino.org), so you should do the following :
 
-    wget -O- http://www.piduino.org/piduino-key.asc | sudo apt-key add -
-    sudo add-apt-repository 'deb http://apt.piduino.org stretch piduino'
+    wget -O- http://www.piduino.org/piduino-key.asc | sudo gpg --dearmor --yes --output /usr/share/keyrings/piduino-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/piduino-archive-keyring.gpg] http://apt.piduino.org $(lsb_release -c -s) piduino" | sudo tee /etc/apt/sources.list.d/piduino.list
     sudo apt update
     sudo apt install mbpoll
 
 This repository provides `mbpoll` and `libmodbus` (version 3.1.7) packages for
 `i386`, `amd64`, `armhf` and `arm64` architectures.
-In the above commands, the repository is a Debian Stretch distribution, but you 
-can also choose Ubuntu Trusty, Xenial or Bionic by replacing `stretch` with 
-`trusty`, `xenial` or `bionic`.  
-It may be necessary to install the `software-properties-common` 
-package for `add-apt-repository`.
-
-For Raspbian you have to do a little different :
-
-    wget -O- http://www.piduino.org/piduino-key.asc | sudo apt-key add -
-    echo 'deb http://raspbian.piduino.org stretch piduino' | sudo tee /etc/apt/sources.list.d/piduino.list
-    sudo apt update
-    sudo apt install mbpoll
-
-The Raspbian repository provides Piduino packages for `armhf` architecture for Stretch only.
 
 ## Installation using Brew on MacOS and Linux
 Using [Homebrew](https://github.com/Homebrew/brew) to install mbpoll and its dependencies using:

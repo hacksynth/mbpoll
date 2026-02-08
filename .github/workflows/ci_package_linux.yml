@@ -44,8 +44,10 @@ jobs:
       id: pkg
       run: |
         DEB_FILE=$(ls build/*.deb)
+        ARCH=$(dpkg --print-architecture)
+        VERSION=$(dpkg-deb -f $DEB_FILE Version)
         echo "DEB_FILE=$DEB_FILE" >> $GITHUB_OUTPUT
-        echo "DEB_NAME=$(basename $DEB_FILE .deb)" >> $GITHUB_OUTPUT
+        echo "DEB_NAME=mbpoll_${VERSION}_linux_${ARCH}" >> $GITHUB_OUTPUT
         dpkg-deb --info $DEB_FILE
         echo "---"
         dpkg-deb --contents $DEB_FILE

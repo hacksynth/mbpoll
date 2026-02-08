@@ -63,7 +63,7 @@ jobs:
           --install-location "/" \
           "build/mbpoll_${VERSION}_${ARCH}.pkg"
 
-        echo "PKG_NAME=mbpoll_${VERSION}_${ARCH}" >> $GITHUB_ENV
+        echo "PKG_NAME=mbpoll_${VERSION}_macos_${ARCH}" >> $GITHUB_ENV
 
     - name: Create tarball
       run: |

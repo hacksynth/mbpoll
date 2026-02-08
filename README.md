@@ -3,9 +3,9 @@
 Copyright © 2015-2026 Pascal JEAN, All rights reserved.
 
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/epsilonrt/mbpoll?include_prereleases)](https://github.com/epsilonrt/mbpoll/releases)
-[![Linux Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml)
-[![Windows Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml)
-[![MacOS Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml)
+[![Build Linux](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml)
+[![Build Windows](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml)
+[![Build macOS](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml)
 
 ---
 

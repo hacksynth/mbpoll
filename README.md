@@ -1,10 +1,8 @@
 # mbpoll
 
-Copyright © 2015-2025 Pascal JEAN, All rights reserved.
+Copyright © 2015-2026 Pascal JEAN, All rights reserved.
 
-
-[![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/epsilonrt/mbpoll?include_prereleases)](https://github.com/epsilonrt/mbpoll/releases)  
-
+[![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/epsilonrt/mbpoll?include_prereleases)](https://github.com/epsilonrt/mbpoll/releases)
 [![Linux Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_linux.yml)
 [![Windows Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_windows.yml)
 [![MacOS Build](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml/badge.svg)](https://github.com/epsilonrt/mbpoll/actions/workflows/ci_macos.yml)
@@ -14,10 +12,8 @@ Copyright © 2015-2025 Pascal JEAN, All rights reserved.
 ## Abstract
 
 <a href="https://modbus.org/">
-  <img src="https://github.com/epsilonrt/modbus-arduino/raw/master/extras/modbus.png" alt="Modbus Logo" align="right" valign="top">
+  <img src="doc/modbus.png" alt="Modbus Logo" align="right" valign="top">
 </a>
-
-
 
 mbpoll is a command line utility to communicate with ModBus slave (RTU or TCP).  
 This is a multiplatform project, the compilation was tested on GNU Linux

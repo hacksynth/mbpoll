@@ -186,6 +186,12 @@ install(TARGETS mbpoll
   RUNTIME DESTINATION bin
   PERMISSIONS ${PROGRAM_PERMISSIONS})
 
+# Install man page (Unix only)
+if(UNIX)
+  install(FILES ${CMAKE_SOURCE_DIR}/doc/mbpoll.1
+    DESTINATION share/man/man1)
+endif()
+
 # Uninstall target
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"

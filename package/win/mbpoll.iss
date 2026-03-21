@@ -1,12 +1,12 @@
 ; Copyright © 2015-2026 Pascal JEAN aka epsilonRT, All rights reserved.
 ;
 ; VERSION can be overridden from the command line:
-;   iscc /DVERSION=1.5.3 mbpoll.iss
+;   iscc /DVERSION=1.0.0 mbpoll.iss
 ; BUILDDIR can be overridden to point to the CMake build output:
 ;   iscc /DBUILDDIR=..\..\build\bin\Release mbpoll.iss
 
 #ifndef VERSION
-  #define VERSION "1.5.3"
+  #define VERSION "1.0.0"
 #endif
 #ifndef BUILDDIR
   #define BUILDDIR "..\..\build\bin\Release"

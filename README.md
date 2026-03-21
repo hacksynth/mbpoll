@@ -123,8 +123,8 @@ The formal release trigger is a semantic-version tag on a commit that is contain
 
     git checkout master
     git pull --ff-only
-    git tag -a v1.5.3 -m "mbpoll 1.5.3"
-    git push origin v1.5.3
+    git tag -a v1.0.0 -m "mbpoll 1.0.0"
+    git push origin v1.0.0
 
 The tag is the authoritative release version. The existing CMake / packaging logic continues to derive the binary and package version from the tag (or from `git describe` on non-tag builds), so Linux, macOS, and Windows stay aligned on the same version source.
 

@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(mbpoll
-  VERSION 1.5.3
+  VERSION 1.0.0
   DESCRIPTION "ModBus Master Simulator"
   LANGUAGES C)
 

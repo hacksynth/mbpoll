@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. 1.5.3)'
+        description: 'Version (e.g. 1.0.0)'
         required: false
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
         } elseif ($env:GITHUB_REF -match '^refs/tags/v(.+)$') {
           $v = $Matches[1]
         } else {
-          # Extract version from git describe (e.g. v1.5.3 -> 1.5.3)
+          # Extract version from git describe (e.g. v1.0.0 -> 1.0.0)
           $desc = git describe --tags --match 'v*' 2>$null
           if ($desc -match '^v(\d+\.\d+\.\d+)') {
             $v = $Matches[1]

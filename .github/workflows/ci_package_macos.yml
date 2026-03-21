@@ -27,7 +27,7 @@ jobs:
         if [[ "$GITHUB_REF" =~ ^refs/tags/v(.+)$ ]]; then
           VERSION="${BASH_REMATCH[1]}"
         else
-          # Extract version from git describe (e.g. v1.5.3 -> 1.5.3, v1.5.3-2-gabcdef -> 1.5.3)
+          # Extract version from git describe (e.g. v1.0.0 -> 1.0.0, v1.0.0-2-gabcdef -> 1.0.0)
           GIT_DESC=$(git describe --tags --match 'v*' 2>/dev/null || echo "v0.0.0")
           VERSION=$(echo "$GIT_DESC" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
         fi

@@ -28,6 +28,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Option for custom RTS GPIO support
 set(MBPOLL_CUSTOM_RTS_GPIO ON CACHE BOOL "Enable custom RTS GPIO (if libpiduino found, only on ARM)")
+option(MBPOLL_BUILD_DESKTOP "Build the Qt6 desktop GUI when Qt6 Widgets is available" ON)
 
 # Check for system getopt (use bundled version on Windows)
 include(CheckSymbolExists)
@@ -89,13 +90,16 @@ set(MBPOLL_VERSION_STRING
   ${MBPOLL_VERSION_MAJOR}.${MBPOLL_VERSION_MINOR}.${MBPOLL_VERSION_PATCH})
 
 # Define source files
-set(MBPOLL_SOURCES
-  ${CMAKE_SOURCE_DIR}/src/mbpoll.c
+set(MBPOLL_COMMON_SOURCES
+  ${CMAKE_SOURCE_DIR}/src/mbpoll-runtime.c
   ${CMAKE_SOURCE_DIR}/src/custom-rts.c
   ${CMAKE_SOURCE_DIR}/src/serial.c
   ${CMAKE_SOURCE_DIR}/src/chipio.c
   ${CMAKE_SOURCE_DIR}/src/utils.c
-  ${LIBMODBUS_SRCS}
+  ${LIBMODBUS_SRCS})
+
+set(MBPOLL_SOURCES
+  ${CMAKE_SOURCE_DIR}/src/mbpoll.c
   ${GETOPT_SOURCES})
 
 # Windows resource file
@@ -106,79 +110,86 @@ if(WIN32)
   list(APPEND MBPOLL_SOURCES ${CMAKE_SOURCE_DIR}/libmodbus/src/win32/modbus.rc)
 endif()
 
+# Shared backend used by the CLI and desktop GUI
+add_library(mbpoll-common STATIC ${MBPOLL_COMMON_SOURCES})
+
 # Create the executable
 add_executable(mbpoll ${MBPOLL_SOURCES})
 
 # Include directories
+target_include_directories(mbpoll-common PUBLIC
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ${LIBMODBUS_INCLUDE_DIRS})
+
 target_include_directories(mbpoll PRIVATE
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${LIBMODBUS_INCLUDE_DIRS}
   ${GETOPT_INCLUDE_DIR})
 
 # Compiler-specific options
-if(MSVC)
-  target_compile_definitions(mbpoll PRIVATE _CRT_SECURE_NO_WARNINGS)
-else()
-  # Common warning flags
-  target_compile_options(mbpoll PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wformat-security
-    -Wno-unused-parameter
-    -Wno-unused-function
-    -Wno-unused-const-variable)
+function(mbpoll_apply_c_target_settings target)
+  if(MSVC)
+    target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+  else()
+    target_compile_options(${target} PRIVATE
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Wformat-security
+      -Wno-unused-parameter
+      -Wno-unused-function
+      -Wno-unused-const-variable)
 
-  # Security hardening (Release builds)
-  target_compile_options(mbpoll PRIVATE
-    $<$<CONFIG:Release>:-fstack-protector-strong>
-    $<$<CONFIG:RelWithDebInfo>:-fstack-protector-strong>)
+    target_compile_options(${target} PRIVATE
+      $<$<CONFIG:Release>:-fstack-protector-strong>
+      $<$<CONFIG:RelWithDebInfo>:-fstack-protector-strong>)
 
-  target_compile_definitions(mbpoll PRIVATE
-    $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>
-    $<$<CONFIG:Release>:NDEBUG>
-    $<$<CONFIG:RelWithDebInfo>:_FORTIFY_SOURCE=2>)
+    target_compile_definitions(${target} PRIVATE
+      $<$<CONFIG:Release>:_FORTIFY_SOURCE=2>
+      $<$<CONFIG:Release>:NDEBUG>
+      $<$<CONFIG:RelWithDebInfo>:_FORTIFY_SOURCE=2>)
 
-  # Debug build with Address Sanitizer support
-  target_compile_options(mbpoll PRIVATE
-    $<$<CONFIG:Debug>:-g>
-    $<$<CONFIG:Debug>:-O0>
-    $<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
+    target_compile_options(${target} PRIVATE
+      $<$<CONFIG:Debug>:-g>
+      $<$<CONFIG:Debug>:-O0>
+      $<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
+  endif()
 
-  # Optional: Enable sanitizers in debug mode (uncomment to use)
-  # target_compile_options(mbpoll PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
-  # target_link_options(mbpoll PRIVATE $<$<CONFIG:Debug>:-fsanitize=address,undefined>)
-endif()
+  target_compile_definitions(${target} PRIVATE _GNU_SOURCE)
+endfunction()
+
+mbpoll_apply_c_target_settings(mbpoll-common)
+mbpoll_apply_c_target_settings(mbpoll)
 
 # Compile definitions
-target_compile_definitions(mbpoll PRIVATE _GNU_SOURCE)
-target_compile_definitions(mbpoll PRIVATE SKIP_FAILURE_EXIT)
-
 if(MBPOLL_GPIO_RTS)
-  target_compile_definitions(mbpoll PRIVATE MBPOLL_GPIO_RTS)
-  target_include_directories(mbpoll PRIVATE ${PIDUINO_INCLUDE_DIRS})
+  target_compile_definitions(mbpoll-common PRIVATE MBPOLL_GPIO_RTS)
+  target_include_directories(mbpoll-common PRIVATE ${PIDUINO_INCLUDE_DIRS})
 endif()
 
 # Link libraries
 if(WIN32)
-  target_link_libraries(mbpoll PRIVATE wsock32 ws2_32)
+  target_link_libraries(mbpoll-common PUBLIC wsock32 ws2_32)
 else()
-  target_link_libraries(mbpoll PRIVATE ${LIBMODBUS_LIBRARIES})
-  target_link_directories(mbpoll PRIVATE ${LIBMODBUS_LIBRARY_DIRS})
-  target_compile_options(mbpoll PRIVATE ${LIBMODBUS_CFLAGS_OTHER})
+  target_link_libraries(mbpoll-common PUBLIC ${LIBMODBUS_LIBRARIES})
+  target_link_directories(mbpoll-common PUBLIC ${LIBMODBUS_LIBRARY_DIRS})
+  target_compile_options(mbpoll-common PRIVATE ${LIBMODBUS_CFLAGS_OTHER})
 
   if(MBPOLL_GPIO_RTS)
-    target_link_libraries(mbpoll PRIVATE ${PIDUINO_LIBRARIES})
-    target_link_directories(mbpoll PRIVATE ${PIDUINO_LIBRARY_DIRS})
+    target_link_libraries(mbpoll-common PRIVATE ${PIDUINO_LIBRARIES})
+    target_link_directories(mbpoll-common PRIVATE ${PIDUINO_LIBRARY_DIRS})
   endif()
 endif()
+
+target_link_libraries(mbpoll PRIVATE mbpoll-common)
 
 # Windows pre-build step for libmodbus configuration
 if(WIN32)
   add_custom_command(
-    TARGET mbpoll PRE_BUILD
+    TARGET mbpoll-common PRE_BUILD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/libmodbus/src/win32
     COMMAND ${CSCRIPT_PATH} ${CMAKE_SOURCE_DIR}/libmodbus/src/win32/configure.js
     VERBATIM)
@@ -208,6 +219,10 @@ option(BUILD_TESTING "Build unit tests" ON)
 if(BUILD_TESTING)
   enable_testing()
   add_subdirectory(tests)
+endif()
+
+if(MBPOLL_BUILD_DESKTOP)
+  add_subdirectory(desktop)
 endif()
 
 # CPack configuration for Debian packages

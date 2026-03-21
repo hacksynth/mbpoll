@@ -42,7 +42,9 @@ Name: en; MessagesFile: compiler:Default.isl; LicenseFile: license.txt
 
 [CustomMessages]
 en.MainFiles=MBPoll
-en.MainDescription=A command line user interface allows easy communication with ModBus RTU and TCP slave
+en.MainDescription=Command line and optional desktop interfaces allow easy communication with ModBus RTU and TCP slave devices
+en.CliShortcut=MBPoll Command Line
+en.GuiShortcut=MBPoll Desktop
 en.Sources=Source Files
 en.Redist=Microsoft Visual C++ Redistributable (x64)
 
@@ -60,6 +62,10 @@ Source: license*.txt; DestDir: {app}; Flags: ignoreversion recursesubdirs create
 Source: mbpoll.ico; DestDir: {app}; Flags: ignoreversion recursesubdirs createallsubdirs; Components: main
 Source: ..\..\*; Excludes: \build,\cmake-build-*,\package,\libmodbus,\3rdparty,\.git,\.github,\tests,.*; DestDir: {app}\src; Flags: ignoreversion recursesubdirs createallsubdirs; Components: source
 Source: tmp\vc_redist.x64.exe; DestDir: {tmp}; Flags: deleteafterinstall
+
+[Icons]
+Name: {group}\{cm:CliShortcut}; Filename: {app}\mbpoll.exe; Components: main
+Name: {group}\{cm:GuiShortcut}; Filename: {app}\mbpoll-desktop.exe; Components: main; Check: FileExists(ExpandConstant('{app}\mbpoll-desktop.exe'))
 
 [Run]
 Filename: {tmp}\vc_redist.x64.exe; Parameters: "/install /quiet /norestart"; Components: vc_redist; StatusMsg: Installing Visual C++ Redistributable...

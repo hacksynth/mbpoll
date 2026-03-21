@@ -17,6 +17,18 @@ Installation following the instructions on the page [Configure VS Code for Micro
 1. Download the latest version of [CMake](https://cmake.org/download/)  
 2. Install the [CMake Tools extension for VS Code](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools). . You can install the CMake Tools extension by searching for 'cmake' in the Extensions view (Ctrl+Shift+X). 
 
+### Install Qt 6 (optional, for `mbpoll-desktop`)
+
+If you want to build the desktop GUI MVP, install Qt 6 with the Widgets
+component and make sure CMake can find the Qt package files. In practice this
+usually means either:
+
+1. selecting a VS Code / CMake kit configured for your Qt 6 installation, or
+2. setting `CMAKE_PREFIX_PATH` so `find_package(Qt6 COMPONENTS Widgets)` can resolve it.
+
+If Qt 6 is not installed, CMake still builds the CLI and simply skips the
+`mbpoll-desktop` target.
+
 ### Install pkg-config
 
 This is a step-by-step procedure to get pkg-config working on Windows.
@@ -51,8 +63,10 @@ Open a git bash terminal  :
 1. Open Visual Studio Code and open the folder `mbpoll`.  
 2. Choose Visual Studio Community 2022 Realease - x86 as the kit in the Cmake status bar.
 3. Choose the Release configuration in the Cmake status bar.
-4. Click on the Configure button in the status bar to configure the project.
-5. Click on the Build button in the status bar to build the project.
+4. If Qt 6 is installed, choose a kit that can see the Qt installation so that
+   `mbpoll-desktop` is generated in addition to `mbpoll`.
+5. Click on the Configure button in the status bar to configure the project.
+6. Click on the Build button in the status bar to build the project.
 
         [main] Building folder: mbpoll 
         [build] Starting build
@@ -78,6 +92,11 @@ Open a git bash terminal  :
 
 The warnings LNK4217 and C4273 are normal.
 
+When Qt 6 is available, the build also produces `mbpoll-desktop.exe`. The
+desktop target currently covers the most common TCP/RTU read, polling, and
+coil/holding-register write workflows. Advanced CLI options remain available
+only through `mbpoll.exe`.
+
 ## Make Innosetup installer
 
 1. Download the latest version of [Innosetup](https://jrsoftware.org/isdl.php)  
@@ -85,4 +104,7 @@ The warnings LNK4217 and C4273 are normal.
 3. Download the Microsoft Visual C++ Redistributable latest from https://aka.ms/vs/17/release/vc_redist.x86.exe and copy it to `mbpoll\package\win\tmp\vcredist_x86.exe`  
 4. Compile the installer with Innosetup  
 5. Get the installer in the folder `mbpoll\package\win\installer`  
+
+If `mbpoll-desktop.exe` exists in the build output, the installer includes it
+alongside `mbpoll.exe` and creates a Start Menu shortcut for the desktop UI.
 

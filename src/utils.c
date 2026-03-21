@@ -6,7 +6,7 @@
 #include "utils.h"
 
 #ifdef DEBUG
-#define PDEBUG(fmt,...) printf("utils.c:%d: %s(): " fmt, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+#define PDEBUG(fmt,...) printf("utils.c:%d: %s(): " fmt, __LINE__, __func__, ##__VA_ARGS__)
 #else
 #define PDEBUG(...)
 #endif

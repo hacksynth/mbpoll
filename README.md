@@ -91,6 +91,10 @@ For example to query a debian system:
         $ cd build
         $ cmake ..
 
+  To build the optional desktop GUI MVP, also install a Qt 6 Widgets
+  development package before configuring CMake
+  (`qt6-base` on Arch Linux, `qt6-base-dev` on Debian/Ubuntu).
+
 * Compile and install mbpoll:
 
         $ make
@@ -107,6 +111,37 @@ In some cases, when installing pkg-config for the first time, it may be necessar
 That's all !
 
 For Windows, you can follow the instructions in the [README-WINDOWS.md](README-WINDOWS.md) file.
+
+## Desktop GUI MVP
+
+The source tree can also build `mbpoll-desktop`, a Qt 6 Widgets desktop MVP
+for the most common interactive Modbus workflows. It is an additional target
+and does not replace the `mbpoll` command line interface.
+
+Current GUI scope:
+
+- Modbus TCP and RTU
+- host/device, port/baudrate, slave address, function/type, start reference,
+  count, timeout and poll rate
+- single read, periodic polling, single or multiple coil writes, and single or
+  multiple holding register writes
+- results table, error banner, current request summary, and operation log
+
+Current GUI limitations:
+
+- no slave address lists or start reference lists
+- no report slave ID, quiet/verbose, quirks, `-0`, GPIO RTS, or ChipIo options
+- no attempt to expose every CLI switch; use `mbpoll` for scripting or advanced
+  options
+
+Build and launch:
+
+    $ cmake -B build -DCMAKE_BUILD_TYPE=Debug
+    $ cmake --build build --config Debug
+    $ ./build/bin/mbpoll-desktop
+
+If Qt 6 Widgets is not available at configure time, the `mbpoll-desktop` target
+is skipped and the CLI build continues normally.
 
 ## Examples
 

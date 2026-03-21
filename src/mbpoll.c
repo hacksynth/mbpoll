@@ -44,6 +44,7 @@
 #include "version-git.h"
 #include "mbpoll-config.h"
 #include "mbpoll.h"
+#include "mbpoll-runtime.h"
 #include "chipio.h"
 
 /* constants ================================================================ */
@@ -66,7 +67,7 @@
 #endif
 
 #ifndef NDEBUG
-#define PDEBUG(fmt,...) printf("%s:%d: %s(): " fmt, BASENAME(__FILE__), __LINE__, __FUNCTION__, ##__VA_ARGS__)
+#define PDEBUG(fmt,...) printf("%s:%d: %s(): " fmt, BASENAME(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
 #else
 #define PDEBUG(...)  if (ctx.bIsVerbose) printf(__VA_ARGS__)
 #endif
@@ -380,6 +381,7 @@ int
 main (int argc, char **argv) {
   int iRet = 0;
   int i;
+  char sError[256];
 
   parse_args (argc, argv);
 
@@ -392,8 +394,6 @@ main (int argc, char **argv) {
         vCheckIntRange (sSlaveAddrStr, ctx.piSlaveAddr[i],
                         iMinAddr, SLAVEADDR_MAX);
       }
-      ctx.xBus = modbus_new_rtu (ctx.sDevice, ctx.xRtu.baud, ctx.xRtu.parity,
-                                 ctx.xRtu.dbits, ctx.xRtu.sbits);
       break;
     }
 
@@ -404,7 +404,6 @@ main (int argc, char **argv) {
         vCheckIntRange (sSlaveAddrStr, ctx.piSlaveAddr[i],
                         iMinAddr, SLAVEADDR_MAX);
       }
-      ctx.xBus = modbus_new_tcp_pi (ctx.sDevice, ctx.sTcpPort);
       break;
     }
 
@@ -412,74 +411,13 @@ main (int argc, char **argv) {
       break;
   }
 
-  if (ctx.xBus == NULL) {
-
-    vIoErrorExit ("Unable to create the libmodbus context");
-  }
-  modbus_set_debug (ctx.xBus, ctx.bIsVerbose);
-
-  // Enable libmodbus quirks if requested
-  if (ctx.bEnableMaxSlaveQuirk || ctx.bEnableReplyToBroadcastQuirk) {
-    int iQuirks = 0;
-    if (ctx.bEnableMaxSlaveQuirk) {
-      iQuirks |= MODBUS_QUIRK_MAX_SLAVE;
-    }
-    if (ctx.bEnableReplyToBroadcastQuirk) {
-      iQuirks |= MODBUS_QUIRK_REPLY_TO_BROADCAST;
-    }
-    if (modbus_enable_quirks (ctx.xBus, iQuirks) != 0) {
-      vIoErrorExit ("Unable to enable quirk(s): %s", modbus_strerror (errno));
-    }
-  }
-
   if (false == ctx.bIsQuiet) {
     vHello();
   }
 
-  if ( (ctx.iRtuMode != MODBUS_RTU_RTS_NONE) && (ctx.eMode == eModeRtu) &&
-       !ctx.bIsChipIo) {
-
-#ifdef MBPOLL_GPIO_RTS
-    if (ctx.iRtsPin >= 0) {
-      double t = 11 / (double) ctx.xRtu.baud / 2 * 1e6; // delay 1/2 car
-
-      if (init_custom_rts (ctx.iRtsPin, ctx.iRtuMode == MODBUS_RTU_RTS_UP) != 0) {
-
-        vIoErrorExit ("Unable to set GPIO RTS pin: %d", ctx.iRtsPin);
-      }
-      modbus_rtu_set_custom_rts (ctx.xBus, set_custom_rts);
-      modbus_rtu_set_rts_delay (ctx.xBus, (int) t);
-    }
-#endif
-    modbus_rtu_set_serial_mode (ctx.xBus, MODBUS_RTU_RS485);
-    modbus_rtu_set_rts (ctx.xBus, ctx.iRtuMode);
+  if (iMbPollOpen (&ctx, sError, sizeof (sError)) != 0) {
+    vIoErrorExit ("%s", sError);
   }
-
-  // Connection au bus
-  if (modbus_connect (ctx.xBus) == -1) {
-
-    modbus_free (ctx.xBus);
-    vIoErrorExit ("Connection failed: %s", modbus_strerror (errno));
-  }
-
-
-  /*
-   * Prevents the slave from interpreting the 40us pulse created by the driver
-   * when opening the port as a start bit.
-   */
-  mb_delay (20);
-
-  // Set response timeout
-  uint32_t  sec, usec;
-#ifdef DEBUG
-
-  modbus_get_byte_timeout (ctx.xBus, &sec, &usec);
-  PDEBUG ("Get byte timeout: %d s, %d us\n", sec, usec);
-#endif
-  sec = (uint32_t) ctx.dTimeout;
-  usec = (uint32_t) ( (ctx.dTimeout - sec) * 1E6);
-  modbus_set_response_timeout (ctx.xBus, sec, usec);
-  PDEBUG ("Set response timeout to %"PRIu32" sec, %"PRIu32" us\n", sec, usec);
 
   // vSigIntHandler() intercepte le CTRL+C
   signal (SIGINT, vSigIntHandler);
@@ -506,61 +444,14 @@ main (int argc, char **argv) {
       }
 
       if (ctx.bIsWrite) {
-
-        // libmodbus uses PDU addresses!
-        iStartReg = ctx.piStartRef[0] - ctx.iPduOffset;
-
-        iRet = modbus_set_slave (ctx.xBus, ctx.piSlaveAddr[0]);
-        if (iRet != 0) {
-          vIoErrorExit ("Setting slave address failed: %s",
-                        modbus_strerror (errno));
-        }
-        ctx.iTxCount++;
-
         // Write ------------------------------------------------------------
-        switch (ctx.eFunction) {
-
-          case eFuncCoil:
-            if (iNbReg == 1) {
-
-              // Write single bit
-              iRet = modbus_write_bit (ctx.xBus, iStartReg,
-                                       DUINT8 (ctx.pvData, 0));
-            }
-            else {
-
-              iRet = modbus_write_bits (ctx.xBus, iStartReg, iNbReg,
-                                        ctx.pvData);
-            }
-            break;
-
-          case eFuncHoldingReg:
-            if (iNbReg == 1 && (!ctx.bWriteSingleAsMany)) {
-
-              // Write single register
-              iRet = modbus_write_register (ctx.xBus, iStartReg,
-                                            DUINT16 (ctx.pvData, 0));
-            }
-            else {
-
-              iRet =  modbus_write_registers (ctx.xBus, iStartReg, iNbReg,
-                                              ctx.pvData);
-            }
-            break;
-
-          default: // Impossible, value has been verified, prevents gcc warning
-            break;
-        }
-        if (iRet == iNbReg) {
-
-          ctx.iRxCount++;
+        if (iMbPollWriteOnce (&ctx, ctx.piSlaveAddr[0], ctx.piStartRef[0],
+                              sError, sizeof (sError)) == 0) {
           printf ("Written %d references.\n", ctx.iCount);
         }
         else {
           if (!g_bExitSignal) {
-            ctx.iErrorCount++;
-            fprintf (stderr, "Write %s failed: %s\n",
-                     sFunctionToStr (ctx.eFunction), modbus_strerror (errno));
+            fprintf (stderr, "%s\n", sError);
           }
         }
         // End write --------------------------------------------------------
@@ -975,39 +866,10 @@ vPrintConfig (const xMbPollContext * ctx) {
 // Includes overflow protection for size calculations
 void
 vAllocate (xMbPollContext * ctx) {
+  char sError[256];
 
-  size_t ulDataSize = ctx->iCount;
-  switch (ctx->eFunction) {
-
-    case eFuncCoil:
-    case eFuncDiscreteInput:
-      // 1 bit is stored in one byte
-      break;
-
-    case eFuncInputReg:
-    case eFuncHoldingReg:
-      if ( (ctx->eFormat == eFormatInt) || (ctx->eFormat == eFormatFloat)) {
-        // 32-bit registers: check for overflow before multiplication
-        if (ulDataSize > SIZE_MAX / 4) {
-          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=4)", ulDataSize);
-        }
-        ulDataSize *= 4;
-      }
-      else {
-        // 16-bit registers: check for overflow before multiplication
-        if (ulDataSize > SIZE_MAX / 2) {
-          vIoErrorExit ("Data buffer size overflow (count=%zu, multiplier=2)", ulDataSize);
-        }
-        ulDataSize *= 2;
-      }
-      break;
-
-    default: // Impossible, value has been verified, prevents gcc warning
-      break;
-  }
-  ctx->pvData = calloc (1, ulDataSize);
-  if (ctx->pvData == NULL) {
-    vIoErrorExit ("Memory allocation failed for data buffer");
+  if (iMbPollAllocateData (ctx, sError, sizeof (sError)) != 0) {
+    vIoErrorExit ("%s", sError);
   }
 }
 
@@ -1027,14 +889,10 @@ vCleanup (void) {
             (double) ctx.iTxCount);
   }
 
-  free (ctx.pvData);
+  vMbPollFreeData (&ctx);
   free (ctx.piSlaveAddr);
   free (ctx.piStartRef);
-  // NULL check for modbus context - modbus_close/free don't handle NULL
-  if (ctx.xBus != NULL) {
-    modbus_close (ctx.xBus);
-    modbus_free (ctx.xBus);
-  }
+  vMbPollClose (&ctx);
   vChipIoClose(&ctx);
 
   if (g_bExitSignal == SIGINT) {

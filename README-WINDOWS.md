@@ -61,7 +61,7 @@ Open a git bash terminal  :
 ## Build 
 
 1. Open Visual Studio Code and open the folder `mbpoll`.  
-2. Choose Visual Studio Community 2022 Realease - x86 as the kit in the Cmake status bar.
+2. Choose a Visual Studio 2022 Release x64 kit in the CMake status bar.
 3. Choose the Release configuration in the Cmake status bar.
 4. If Qt 6 is installed, choose a kit that can see the Qt installation so that
    `mbpoll-desktop` is generated in addition to `mbpoll`.
@@ -101,10 +101,15 @@ only through `mbpoll.exe`.
 
 1. Download the latest version of [Innosetup](https://jrsoftware.org/isdl.php)  
 2. Go to the folder `mbpoll\package\win` and open the file `mbpoll.iss` with Innosetup  
-3. Download the Microsoft Visual C++ Redistributable latest from https://aka.ms/vs/17/release/vc_redist.x86.exe and copy it to `mbpoll\package\win\tmp\vcredist_x86.exe`  
+3. Download the latest Microsoft Visual C++ Redistributable from https://aka.ms/vs/17/release/vc_redist.x64.exe and copy it to `mbpoll\package\win\tmp\vc_redist.x64.exe`
 4. Compile the installer with Innosetup  
 5. Get the installer in the folder `mbpoll\package\win\installer`  
 
 If `mbpoll-desktop.exe` exists in the build output, the installer includes it
 alongside `mbpoll.exe` and creates a Start Menu shortcut for the desktop UI.
+
+The GitHub Actions release pipeline uses the same Inno Setup script. Pushing a
+`vX.Y.Z` tag that points to a commit on `master` or `main` runs the
+`Package Windows` workflow and publishes `mbpoll-setup-X.Y.Z.exe` on the
+repository's GitHub Release page.
 

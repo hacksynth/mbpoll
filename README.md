@@ -112,6 +112,31 @@ That's all !
 
 For Windows, you can follow the instructions in the [README-WINDOWS.md](README-WINDOWS.md) file.
 
+## Maintainer release workflow
+
+GitHub Actions is split into two layers:
+
+- `ci_build_linux.yml`, `ci_build_macos.yml`, and `ci_build_windows.yml` are the ordinary CI builds. They run on branch pushes, pull requests, and manual dispatches, but they do not publish GitHub Release assets.
+- `ci_package_linux.yml`, `ci_package_macos.yml`, and `ci_package_windows.yml` build the installable artifacts. They can be run manually for packaging checks, and they become the formal release pipeline when a `vX.Y.Z` tag is pushed.
+
+The formal release trigger is a semantic-version tag on a commit that is contained in `master` or `main`:
+
+    git checkout master
+    git pull --ff-only
+    git tag -a v1.5.3 -m "mbpoll 1.5.3"
+    git push origin v1.5.3
+
+The tag is the authoritative release version. The existing CMake / packaging logic continues to derive the binary and package version from the tag (or from `git describe` on non-tag builds), so Linux, macOS, and Windows stay aligned on the same version source.
+
+When the tag push completes, the GitHub Release page receives:
+
+- Linux: `mbpoll_<version>_<arch>.deb`
+- macOS: `mbpoll_<version>_macos_<arch>.pkg`
+- macOS: `mbpoll_<version>_macos_<arch>.tar.gz`
+- Windows: `mbpoll-setup-<version>.exe`
+
+Manual `workflow_dispatch` runs of the package workflows remain useful for rehearsing package creation on a branch, but they do not replace the tag-driven formal release path above.
+
 ## Desktop GUI MVP
 
 The source tree can also build `mbpoll-desktop`, a Qt 6 Widgets desktop MVP

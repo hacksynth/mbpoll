@@ -1,8 +1,9 @@
-name: Build Windows Setup
+name: Package Windows
 
 on:
   push:
     branches: [ master, main, dev ]
+    # Formal releases are published from semantic-version tags on master/main.
     tags:
       - 'v*.*.*'
   pull_request:

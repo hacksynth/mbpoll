@@ -1,10 +1,7 @@
-name:  Build Linux
-
+name: CI Build Linux
 on:
   push:
     branches: [ master, main, dev, 'release-*' ]
-    tags:
-      - 'v*.*.*'
   pull_request:
     branches: [ master, main, dev ]
   workflow_dispatch:

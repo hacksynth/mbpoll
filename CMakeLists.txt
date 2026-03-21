@@ -129,6 +129,13 @@ target_include_directories(mbpoll PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
   ${GETOPT_INCLUDE_DIR})
 
+if(WIN32)
+  # Build bundled libmodbus/getopt sources directly into the executable instead
+  # of importing symbols from separate Windows DLLs.
+  target_compile_definitions(mbpoll-common PUBLIC DLLBUILD)
+  target_compile_definitions(mbpoll PRIVATE STATIC_GETOPT)
+endif()
+
 # Compiler-specific options
 function(mbpoll_apply_c_target_settings target)
   if(MSVC)

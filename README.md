@@ -119,6 +119,11 @@ GitHub Actions is split into two layers:
 - `ci_build_linux.yml`, `ci_build_macos.yml`, and `ci_build_windows.yml` are the ordinary CI builds. They run on branch pushes, pull requests, and manual dispatches, but they do not publish GitHub Release assets.
 - `ci_package_linux.yml`, `ci_package_macos.yml`, and `ci_package_windows.yml` build the installable artifacts. They can be run manually for packaging checks, and they become the formal release pipeline when a `vX.Y.Z` tag is pushed.
 
+The Linux and macOS package workflows install Qt 6 in CI so the formal release
+artifacts include both `mbpoll` and `mbpoll-desktop`. Windows release packaging
+still uses the Inno Setup workflow and includes `mbpoll-desktop.exe` when that
+target is present in the build output.
+
 The formal release trigger is a semantic-version tag on a commit that is contained in `master` or `main`:
 
     git checkout master

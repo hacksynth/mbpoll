@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+typedef void (*mbpoll_failure_exit_cleanup_fn) (void);
+
 #ifndef MIN
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #endif
@@ -11,6 +13,8 @@
 #endif
 
 void vFailureExit (bool bHelp, const char *format, ...);
+void vSetFailureExitContext (const char * program_name,
+                             mbpoll_failure_exit_cleanup_fn cleanup_fn);
 
 #define vSyntaxErrorExit(fmt,...) vFailureExit(true,fmt,##__VA_ARGS__)
 #define vIoErrorExit(fmt,...) vFailureExit(false,fmt,##__VA_ARGS__)

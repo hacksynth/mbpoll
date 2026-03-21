@@ -19,7 +19,7 @@ jobs:
         fetch-depth: 0
 
     - name: Install dependencies
-      run: brew install cmake pkg-config libmodbus
+      run: brew install cmake pkg-config libmodbus qt
 
     - name: Determine version
       id: version
@@ -35,7 +35,7 @@ jobs:
         echo "Version: $VERSION"
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
 
     - name: Build
       run: cmake --build build --config Release
@@ -47,6 +47,7 @@ jobs:
       run: |
         ./build/bin/mbpoll -V
         ./build/bin/mbpoll -h || true
+        test -x ./build/bin/mbpoll-desktop
 
     - name: Create macOS package
       run: |

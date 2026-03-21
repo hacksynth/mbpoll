@@ -11,29 +11,39 @@
 #define PDEBUG(...)
 #endif
 
+static const char * gFailureExitProgramName = "mbpoll";
+static mbpoll_failure_exit_cleanup_fn gFailureExitCleanup = NULL;
+
 // -----------------------------------------------------------------------------
-// Weak implementation of vFailureExit for standalone compilation.
-// When linked with mbpoll.c, the stronger definition there takes precedence.
-// This enables utils.c to be compiled and tested independently.
+void
+vSetFailureExitContext (const char * program_name,
+                        mbpoll_failure_exit_cleanup_fn cleanup_fn) {
+  if (program_name && *program_name) {
+    gFailureExitProgramName = program_name;
+  }
+  gFailureExitCleanup = cleanup_fn;
+}
+
 // -----------------------------------------------------------------------------
 #ifndef SKIP_FAILURE_EXIT
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((weak))
-#endif
 void
 vFailureExit (bool bHelp, const char *format, ...) {
   va_list va;
+
   va_start (va, format);
-  fprintf (stderr, "utils: ");
+  fprintf (stderr, "%s: ", gFailureExitProgramName);
   vfprintf (stderr, format, va);
   if (bHelp) {
-    fprintf (stderr, " ! (syntax error)\n");
+    fprintf (stderr, " ! Try -h for help.\n");
   }
   else {
     fprintf (stderr, ".\n");
   }
   va_end (va);
   fflush (stderr);
+  if (gFailureExitCleanup) {
+    gFailureExitCleanup ();
+  }
   exit (EXIT_FAILURE);
 }
 #endif

@@ -247,6 +247,17 @@ static xMbPollContext ctx = {
   .pvData = NULL
 };
 
+// -----------------------------------------------------------------------------
+static void
+vCleanupContext (void) {
+  free (ctx.pvData);
+  ctx.pvData = NULL;
+  free (ctx.piSlaveAddr);
+  ctx.piSlaveAddr = NULL;
+  free (ctx.piStartRef);
+  ctx.piStartRef = NULL;
+}
+
 #ifdef USE_CHIPIO
 // -----------------------------------------------------------------------------
 #include <chipio/serial.h>
@@ -912,28 +923,6 @@ vSigIntHandler (int sig) {
 
 // -----------------------------------------------------------------------------
 void
-vFailureExit (bool bHelp, const char *format, ...) {
-  va_list va;
-
-  va_start (va, format);
-  fprintf (stderr, "%s: ", progname);
-  vfprintf (stderr, format, va);
-  if (bHelp) {
-    fprintf (stderr, " ! Try -h for help.\n");
-  }
-  else {
-    fprintf (stderr, ".\n");
-  }
-  va_end (va);
-  fflush (stderr);
-  free (ctx.pvData);
-  free (ctx.piSlaveAddr);
-  free (ctx.piStartRef);
-  exit (EXIT_FAILURE);
-}
-
-// -----------------------------------------------------------------------------
-void
 vVersion (void)  {
   printf ("%s\n", VERSION_SHORT);
   exit (EXIT_SUCCESS);
@@ -1260,6 +1249,7 @@ parse_args (int argc, char **argv) {
   int i;
 
   progname = argv[0];
+  vSetFailureExitContext (progname, vCleanupContext);
 
   do  {
 

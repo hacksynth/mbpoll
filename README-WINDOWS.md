@@ -99,17 +99,24 @@ only through `mbpoll.exe`.
 
 ## Make Innosetup installer
 
-1. Download the latest version of [Innosetup](https://jrsoftware.org/isdl.php)  
+1. Download the latest version of [Innosetup](https://jrsoftware.org/isdl.php)
 2. Go to the folder `mbpoll\package\win` and open the file `mbpoll.iss` with Innosetup  
-3. Download the latest Microsoft Visual C++ Redistributable from https://aka.ms/vs/17/release/vc_redist.x64.exe and copy it to `mbpoll\package\win\tmp\vc_redist.x64.exe`
-4. Compile the installer with Innosetup  
-5. Get the installer in the folder `mbpoll\package\win\installer`  
+3. If `mbpoll-desktop.exe` was built, run `windeployqt` against the release
+   executable so the required Qt DLLs and plugins are copied next to it
+   (adjust the Qt path to match your installation):
+
+       C:\Qt\<version>\msvc2022_64\bin\windeployqt.exe --release --no-compiler-runtime build\bin\Release\mbpoll-desktop.exe
+
+4. Download the latest Microsoft Visual C++ Redistributable from https://aka.ms/vs/17/release/vc_redist.x64.exe and copy it to `mbpoll\package\win\tmp\vc_redist.x64.exe`
+5. Compile the installer with Innosetup
+6. Get the installer in the folder `mbpoll\package\win\installer`
 
 If `mbpoll-desktop.exe` exists in the build output, the installer includes it
-alongside `mbpoll.exe` and creates a Start Menu shortcut for the desktop UI.
+alongside `mbpoll.exe`, together with the files copied by `windeployqt`, and
+creates a Start Menu shortcut for the desktop UI.
 
-The GitHub Actions release pipeline uses the same Inno Setup script. Pushing a
-`vX.Y.Z` tag that points to a commit on `master` or `main` runs the
-`Package Windows` workflow and publishes `mbpoll-setup-X.Y.Z.exe` on the
-repository's GitHub Release page.
+The GitHub Actions release pipeline uses the same Inno Setup script. It
+installs Qt 6, builds `mbpoll-desktop.exe`, runs `windeployqt`, and then
+publishes `mbpoll-setup-X.Y.Z.exe` when a `vX.Y.Z` tag that points to a commit
+on `master` or `main` is pushed.
 

@@ -16,8 +16,16 @@ jobs:
     - name: Clone libmodbus
       run: git clone https://github.com/stephane/libmodbus.git
 
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.8.3'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      shell: pwsh
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
 
     - name: Build
       run: cmake --build build --config Release
@@ -25,8 +33,11 @@ jobs:
     - name: Run tests
       run: ctest --test-dir build --build-config Release --output-on-failure
 
-    - name: Check binary
+    - name: Check binaries
+      shell: pwsh
       run: |
         .\build\bin\Release\mbpoll.exe -V
         .\build\bin\Release\mbpoll.exe -h
-      continue-on-error: true
+        if (-not (Test-Path .\build\bin\Release\mbpoll-desktop.exe)) {
+          throw "mbpoll-desktop.exe was not built"
+        }
